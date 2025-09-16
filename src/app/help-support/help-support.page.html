@@ -1,0 +1,103 @@
+<ion-header [translucent]="false">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="backHref"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ helpSupportContent?.title || 'Help & Support' }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="help-content">
+  <div class="help-container">
+    <!-- Loading State -->
+    <div *ngIf="isLoading" class="loading-container">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading help & support...</p>
+    </div>
+    
+    <!-- Dynamic Help & Support Content -->
+    <div *ngIf="!isLoading && helpSupportContent">
+      <div class="help-header">
+        <div class="help-icon">
+          <ion-icon name="help-circle-outline"></ion-icon>
+        </div>
+        <h1>{{ helpSupportContent.header.title }}</h1>
+        <p>{{ helpSupportContent.header.subtitle }}</p>
+      </div>
+
+      <section class="quick-actions">
+        <h2>Quick Actions</h2>
+        <div class="action-buttons">
+          <ion-button expand="block" fill="outline" (click)="sendFeedback()">
+            <ion-icon [name]="helpSupportContent.quickActions[0].icon" slot="start"></ion-icon>
+            {{ helpSupportContent.quickActions[0].title }}
+          </ion-button>
+          <ion-button expand="block" fill="outline" (click)="reportIssue()">
+            <ion-icon [name]="helpSupportContent.quickActions[1].icon" slot="start"></ion-icon>
+            {{ helpSupportContent.quickActions[1].title }}
+          </ion-button>
+        </div>
+      </section>
+
+      <section class="faq-section">
+        <h2>Frequently Asked Questions</h2>
+        <ion-accordion-group>
+          <ion-accordion *ngFor="let item of helpSupportContent.faq">
+            <ion-item slot="header">
+              <ion-label>{{ item.question }}</ion-label>
+            </ion-item>
+            <div slot="content" class="faq-content">
+              <p>{{ item.answer }}</p>
+            </div>
+          </ion-accordion>
+        </ion-accordion-group>
+      </section>
+
+      <section class="contact-section">
+        <h2>Get in Touch</h2>
+        <div class="contact-info">
+          <div class="contact-item">
+            <ion-icon name="mail-outline"></ion-icon>
+            <div class="contact-details">
+              <h3>{{ helpSupportContent.contactInfo.email.title }}</h3>
+              <p>{{ helpSupportContent.contactInfo.email.address }}</p>
+              <small>{{ helpSupportContent.contactInfo.email.responseTime }}</small>
+            </div>
+          </div>
+          
+          <div class="contact-item">
+            <ion-icon name="globe-outline"></ion-icon>
+            <div class="contact-details">
+              <h3>{{ helpSupportContent.contactInfo.website.title }}</h3>
+              <p>{{ helpSupportContent.contactInfo.website.url }}</p>
+              <small>{{ helpSupportContent.contactInfo.website.description }}</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="legal-section">
+        <h2>Legal Information</h2>
+        <div class="legal-links">
+          <ion-button fill="clear" (click)="navigateToPrivacyPolicy()">
+            <ion-icon name="shield-checkmark-outline" slot="start"></ion-icon>
+            Privacy Policy
+          </ion-button>
+          <ion-button fill="clear" (click)="navigateToTerms()">
+            <ion-icon name="document-text-outline" slot="start"></ion-icon>
+            Terms of Use
+          </ion-button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Fallback Content -->
+    <div *ngIf="!isLoading && !helpSupportContent" class="fallback-content">
+      <h1>Help & Support</h1>
+      <p>Content not available. Please try again later.</p>
+    </div>
+  </div>
+
+  <div class="footer-spacer"></div>
+</ion-content>
+

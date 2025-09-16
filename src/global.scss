@@ -1,0 +1,298 @@
+/* ==============================
+   Theme Variables
+============================== */
+:root {
+  --ion-background-color: #181529;
+  --ion-text-color: #ffffff;
+  --ion-color-primary: #6e57ff;
+  --ion-color-secondary: #a475ff;
+  --ion-color-tertiary: #00d2ff;
+  --ion-font-family: 'Inter', sans-serif;
+  --ion-color-step-100: #2a2741;
+  --ion-color-light-shade: #3b3754;
+  --ion-color-medium: #949494;
+  --ion-color-dark: #1c1b2f;
+
+  /* Dynamic padding variables */
+  --footer-height: 44px;
+  --audio-player-height: 56px;
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --content-padding-bottom: calc(var(--footer-height) + var(--safe-area-bottom));
+  --content-padding-bottom-with-player: calc(var(--footer-height) + var(--audio-player-height) + var(--safe-area-bottom));
+}
+
+/* ==============================
+   Base Layout
+============================== */
+body,
+html {
+  background: var(--ion-background-color) !important;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  /* Prevent overscroll bounce on Android */
+  overscroll-behavior: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ==============================
+   Global Tap Highlight Removal
+============================== */
+* {
+  /* Remove tap highlights globally */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection for specific elements */
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  -khtml-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* ==============================
+   Ionic App Safe Area
+============================== */
+ion-app {
+  --ion-safe-area-top: env(safe-area-inset-top);
+  --ion-safe-area-bottom: env(safe-area-inset-bottom);
+  --ion-safe-area-left: env(safe-area-inset-left);
+  --ion-safe-area-right: env(safe-area-inset-right);
+  height: 100%;
+  /* Prevent overscroll bounce on Android */
+  overscroll-behavior: none;
+}
+
+/* ==============================
+   ion-content Defaults
+============================== */
+ion-content {
+  --height: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* Default padding for footer only */
+  --padding-bottom: var(--content-padding-bottom, calc(44px + env(safe-area-inset-bottom, 0px)));
+  --overflow: auto; /* Allow scrolling */
+  /* Prevent overscroll bounce on Android */
+  overscroll-behavior: none;
+}
+
+/* ==============================
+   Footer & Audio Player Adjustments
+============================== */
+
+/* When both footer and audio player are visible */
+ion-app:has(app-global-audio-player) ion-content {
+  --padding-bottom: var(--content-padding-bottom-with-player, calc(44px + 56px + env(safe-area-inset-bottom, 0px)));
+}
+
+/* Alternative approach using CSS classes */
+ion-content.with-footer-and-player {
+  --padding-bottom: calc(44px + 56px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+ion-content.with-footer-only {
+  --padding-bottom: calc(44px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+ion-footer {
+  z-index: 1000 !important;
+  position: fixed !important;
+  bottom: 0;
+  --padding-bottom: env(safe-area-inset-bottom) !important;
+}
+
+/* ==============================
+   Hide Scrollbars Everywhere
+   (Keeps Scroll Functional)
+============================== */
+
+/* Chrome, Safari, Edge (WebKit) */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: none !important;
+}
+
+/* IE / Legacy Edge */
+* {
+  -ms-overflow-style: none !important;
+}
+
+/* Ionic Shadow DOM Scroll Container */
+ion-content::part(scroll) {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE/Edge */
+  /* Prevent overscroll bounce on Android */
+  overscroll-behavior: none;
+  /* Ensure proper height calculation */
+  min-height: 100%;
+  height: auto;
+}
+
+ion-content::part(scroll)::-webkit-scrollbar {
+  display: none !important; /* WebKit */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Specific target for nested scroll elements inside ion-content */
+ion-content .inner-scroll,
+ion-content .scroll-y,
+ion-content .scroll-x {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  /* Prevent overscroll bounce on Android */
+  overscroll-behavior: none;
+}
+
+ion-content .inner-scroll::-webkit-scrollbar,
+ion-content .scroll-y::-webkit-scrollbar,
+ion-content .scroll-x::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Mobile-specific (Extra Safety) */
+@media screen and (max-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none !important;
+  }
+  * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  
+  /* Android WebView specific fixes */
+  ion-content {
+    /* Prevent overscroll bounce on Android */
+    overscroll-behavior: none;
+  }
+  
+  ion-content::part(scroll) {
+    /* Prevent overscroll bounce on Android */
+    overscroll-behavior: none;
+    /* Ensure proper height calculation on Android */
+    min-height: 100%;
+    height: auto;
+  }
+}
+
+/* ==============================
+   Page Visibility Handling
+============================== */
+.ion-page[ion-page-hidden],
+.ion-page[aria-hidden='true'] {
+  display: none !important;
+}
+
+/* ==============================
+   WebView Specific Fixes
+============================== */
+
+/* Prevent scrollbar on short content */
+.ion-page {
+  /* Ensure proper height calculation */
+  min-height: 100vh;
+  height: auto;
+  /* Prevent overscroll bounce on Android */
+  overscroll-behavior: none;
+}
+
+/* Force hide scrollbars on all page content */
+.ion-page * {
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+/* ==============================
+   Header Visibility Protection
+============================== */
+
+/* Ensure headers stay visible */
+ion-header {
+  position: relative !important;
+  z-index: 1000 !important;
+  /* Prevent header from being affected by scroll */
+  transform: none !important;
+}
+
+/* Prevent scroll behavior when content is short */
+.content-short ion-content::part(scroll) {
+  overflow: hidden !important;
+  pointer-events: none !important;
+  touch-action: none !important;
+  transform: none !important;
+}
+
+/* Re-enable scroll when content overflows */
+.content-overflow ion-content::part(scroll) {
+  overflow-y: auto !important;
+  pointer-events: auto !important;
+  touch-action: pan-y pinch-zoom !important;
+}
+
+/* ==============================
+   Android-Specific Header Protection
+============================== */
+
+@media screen and (max-width: 768px) {
+  /* Additional Android WebView fixes */
+  ion-header {
+    /* Force header to stay in place */
+    position: relative !important;
+    transform: none !important;
+    will-change: auto !important;
+  }
+  
+  /* Prevent any scroll-based header hiding */
+  .content-short ion-header {
+    transform: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+}
+
+/* ==============================
+   Content Spacing Protection
+============================== */
+
+/* Ensure content containers have proper bottom spacing */
+.initial-content,
+.search-results,
+.main-content,
+.page-content {
+  /* Ensure minimum bottom spacing for footer */
+  padding-bottom: calc(44px + env(safe-area-inset-bottom, 20px)) !important;
+}
+
+/* When audio player is visible, add extra spacing */
+.with-audio-player .initial-content,
+.with-audio-player .search-results,
+.with-audio-player .main-content,
+.with-audio-player .page-content {
+  padding-bottom: calc(44px + 56px + env(safe-area-inset-bottom, 20px)) !important;
+}

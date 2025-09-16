@@ -1,0 +1,828 @@
+import { Component, Input, OnInit, OnDestroy } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { IonicModule, ModalController } from '@ionic/angular';
+import { Howl } from 'howler';
+import { GlobalAudioPlayerService } from '../../services/global-audio-player.service';
+import { AmbientAudioService } from '../../services/ambient-audio.service';
+import { Subscription } from 'rxjs';
+
+@Component({
+  selector: 'app-fullscreen-audio-player',
+  standalone: true,
+  imports: [CommonModule, IonicModule],
+  templateUrl: './fullscreen-audio-player.component.html',
+  styleUrls: ['./fullscreen-audio-player.component.scss']
+})
+export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
+  @Input() title: string = '';
+  @Input() description: string = '';
+  @Input() photoUrl: string = '';
+  @Input() audioUrl: string = '';
+  @Input() r2Path: string = '';
+  @Input() storyId: string = '';
+  @Input() narrator: string = ''; // Add narrator property
+  @Input() resumePosition: number = 0;
+
+  // Audio state
+  isPlaying = false;
+  isLoading = false;
+  currentTime = 0;
+  duration = 0;
+  progress = 0;
+  private playPauseLock = false;
+  
+  // Seek loading states
+  isSeekLoading = false;
+  seekLoadingProgress = 0;
+  private seekLoadingTimeout: any = null;
+  private seekLoadingInterval: any = null;
+  
+  // State sync loading
+  isStateSyncing = false;
+  private stateSyncTimeout: any = null;
+
+  // Ambient tracks - now reactive
+  ambientTracks: { id: string; name: string; volume: number }[] = [];
+  private ambientTracksSubscription?: Subscription;
+  private subscriptions: Subscription[] = [];
+
+  // Progress tracking properties
+  private progressRAF: any = null;
+  private progressHealthCheckInterval: any = null;
+  private lastProgressUpdateTime = 0;
+  private stuckProgressThreshold = 5000; // 5 seconds
+  private lastContinueListeningUpdate = 0;
+  private continueListeningUpdateInterval = 30000; // 30 seconds
+
+  // Seek management properties
+  private isSeeking = false;
+  private seekTimeout: ReturnType<typeof setTimeout> | null = null;
+  private lastSeekTimeValue = 0; // Renamed to avoid conflict
+  private seekThrottleDelay = 100; // 100ms throttle for rapid seeks
+  private readonly SEEK_JUMP_SECONDS = 10; // 10 seconds jump for seek forward/backward
+  
+  // CRITICAL FIX: Seek cancellation system
+  private currentSeekId = 0;
+  private pendingSeeks = new Set<number>();
+  private seekAbortController: AbortController | null = null;
+  
+  // CRITICAL FIX: Seek state tracking for UI feedback
+  public isSeekInProgress = false;
+  
+  // Debounce function for seek operations
+  private debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly SEEK_DEBOUNCE_MS = 100; // 100ms debounce for rapid seeks
+
+  // Progress bar mouse event handlers for dragging
+  private isDragging = false;
+
+  constructor(
+    private modalController: ModalController,
+    private ambientAudioService: AmbientAudioService,
+    private globalAudioPlayerService: GlobalAudioPlayerService
+  ) {}
+
+  ngOnInit() {
+    console.log('🎵 Fullscreen audio player initialized');
+    
+    // Start state sync loading
+    this.startStateSyncLoading();
+    
+    // Immediately sync with global audio player
+    this.syncWithGlobalAudioPlayer();
+    
+    this.startProgressHealthMonitoring();
+    this.setupPeriodicSync();
+    
+    // Subscribe to ambient tracks reactive state
+    this.ambientTracksSubscription = this.ambientAudioService.tracks$.subscribe(tracks => {
+      this.ambientTracks = tracks.map(track => ({
+        id: track.id,
+        name: track.name,
+        volume: Number(track.volume) || 0
+      }));
+      console.log('🎵 Ambient tracks updated reactively:', this.ambientTracks);
+    });
+    
+    // Subscribe to global audio state changes for immediate updates
+    this.subscriptions.push(
+      this.globalAudioPlayerService.audioState$.subscribe(state => {
+        if (state) {
+          this.isPlaying = state.isPlaying;
+          this.duration = state.duration || 0;
+          this.progress = state.progress || 0;
+          this.currentTime = this.progress * this.duration;
+          this.isLoading = state.isLoading;
+          
+          // Stop state sync loading after first update
+          this.stopStateSyncLoading();
+          
+          // If audio is playing, start progress updates
+          if (this.isPlaying) {
+            this.updateProgressBar();
+          } else {
+            this.cancelProgressBar();
+          }
+        }
+      })
+    );
+  }
+
+  ngOnDestroy() {
+    console.log('🎵 Fullscreen audio player destroyed');
+    this.cancelProgressBar();
+    this.stopProgressHealthMonitoring();
+    this.cleanupSeekManagement();
+    this.stopSeekLoading();
+    this.stopStateSyncLoading();
+    
+    // Unsubscribe from all subscriptions
+    if (this.ambientTracksSubscription) {
+      this.ambientTracksSubscription.unsubscribe();
+    }
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
+
+  dismiss() {
+    this.modalController.dismiss();
+  }
+
+  private syncWithGlobalAudioPlayer(): void {
+    // Get current state from global audio player service
+    const currentState = this.globalAudioPlayerService.getCurrentState();
+    
+    if (currentState) {
+      this.isPlaying = currentState.isPlaying;
+      this.duration = currentState.duration || 0;
+      this.progress = currentState.progress || 0;
+      this.currentTime = this.progress * this.duration;
+      
+      // If audio is playing, start progress updates
+      if (this.isPlaying) {
+        this.updateProgressBar();
+      } else {
+        this.cancelProgressBar();
+      }
+    }
+  }
+
+  private setupPeriodicSync(): void {
+    // Sync with global audio player every 2 seconds
+    setInterval(() => {
+      this.syncWithGlobalAudioPlayer();
+      // No need to refresh ambient tracks manually - they update reactively
+    }, 2000);
+  }
+
+  togglePlay() {
+    if (this.playPauseLock) return;
+
+    this.playPauseLock = true;
+
+    try {
+      // Get current state from global service
+      const currentState = this.globalAudioPlayerService.getCurrentState();
+      
+      if (currentState && currentState.isPlaying) {
+        // Pause using global service
+        this.globalAudioPlayerService.pause();
+        this.isPlaying = false;
+        this.cancelProgressBar();
+      } else {
+        // Play using global service
+        this.globalAudioPlayerService.play({
+          audioUrl: this.audioUrl,
+          title: this.title,
+          photoUrl: this.photoUrl,
+          description: this.description,
+          r2Path: this.r2Path,
+          storyId: this.storyId
+        });
+        this.isPlaying = true;
+        this.updateProgressBar();
+      }
+    } catch (error) {
+      console.error('Toggle play error:', error);
+    } finally {
+      this.playPauseLock = false;
+    }
+  }
+
+  // CRITICAL FIX: Robust seek functionality with proper state management
+  private async performSeek(seekTime: number): Promise<void> {
+    // Prevent multiple simultaneous seeks
+    if (this.isSeeking) {
+      console.log('🎵 Seek already in progress, ignoring');
+      return;
+    }
+
+    this.isSeeking = true;
+
+    try {
+      // Clear any existing seek timeout
+      if (this.seekTimeout) {
+        clearTimeout(this.seekTimeout);
+        this.seekTimeout = null;
+      }
+
+      // Check if audio is ready for seeking
+      const currentState = this.globalAudioPlayerService.getCurrentState();
+      if (!currentState || !currentState.currentTrack) {
+        console.warn('🎵 Audio not ready for seeking');
+        return;
+      }
+
+      // Set a timeout to prevent infinite seeking
+      this.seekTimeout = setTimeout(() => {
+        console.warn('🎵 Seek operation timed out');
+        this.isSeeking = false;
+        this.seekTimeout = null;
+        // Revert to current state
+        this.updateProgressFromService();
+      }, 5000); // 5 second timeout
+
+      // Actually seek the audio using the global service
+      this.globalAudioPlayerService.seekTo(seekTime);
+      
+      console.log('🎵 Seek completed:', seekTime);
+      
+      // Clear timeout on success
+      if (this.seekTimeout) {
+        clearTimeout(this.seekTimeout);
+        this.seekTimeout = null;
+      }
+
+    } catch (error) {
+      console.error('🎵 Seek operation failed:', error);
+      // Revert progress on error
+      this.updateProgressFromService();
+    } finally {
+      // Always reset seeking state
+      this.isSeeking = false;
+      
+      // Clear timeout if still exists
+      if (this.seekTimeout) {
+        clearTimeout(this.seekTimeout);
+        this.seekTimeout = null;
+      }
+    }
+  }
+
+  // Update progress from service state (fallback)
+  private updateProgressFromService(): void {
+    try {
+      const currentState = this.globalAudioPlayerService.getCurrentState();
+      if (currentState) {
+        this.progress = currentState.progress || 0;
+        this.currentTime = this.progress * this.duration;
+      }
+    } catch (error) {
+      console.error('🎵 Error updating progress from service:', error);
+    }
+  }
+
+  // Enhanced progress bar updates
+  updateProgressBar() {
+    if (!this.isPlaying) return;
+    
+    try {
+      // Get current state from global service
+      const currentState = this.globalAudioPlayerService.getCurrentState();
+      
+      if (currentState) {
+        this.isPlaying = currentState.isPlaying;
+        this.duration = currentState.duration || 0;
+        this.progress = currentState.progress || 0;
+        this.currentTime = this.progress * this.duration;
+        
+        // Track last progress update time for health monitoring
+        this.lastProgressUpdateTime = Date.now();
+        
+        // Update continue listening progress less frequently
+        if (this.storyId && this.isPlaying) {
+          const currentTime = Date.now();
+          const timeSinceLastContinueUpdate = currentTime - this.lastContinueListeningUpdate;
+          
+          if (timeSinceLastContinueUpdate >= this.continueListeningUpdateInterval) {
+            this.globalAudioPlayerService.updateContinueListeningProgress(
+              this.storyId, 
+              this.currentTime
+            );
+            this.lastContinueListeningUpdate = currentTime;
+          }
+        }
+      }
+
+      if (this.isPlaying) {
+        this.progressRAF = requestAnimationFrame(() => this.updateProgressBar());
+      }
+    } catch (error) {
+      console.error('Progress update error:', error);
+      this.cancelProgressBar();
+    }
+  }
+
+  // Progress health monitoring
+  private startProgressHealthMonitoring(): void {
+    this.progressHealthCheckInterval = setInterval(() => {
+      const currentTime = Date.now();
+      const timeSinceLastUpdate = currentTime - this.lastProgressUpdateTime;
+      
+      if (this.isPlaying && timeSinceLastUpdate > this.stuckProgressThreshold) {
+        console.log('🔧 Progress bar appears stuck, attempting recovery...');
+        this.recoverFromStuckProgress();
+      }
+    }, 5000); // Check every 5 seconds
+  }
+
+  private stopProgressHealthMonitoring(): void {
+    if (this.progressHealthCheckInterval) {
+      clearInterval(this.progressHealthCheckInterval);
+      this.progressHealthCheckInterval = null;
+    }
+  }
+
+  private recoverFromStuckProgress(): void {
+    if (!this.isPlaying) return;
+    
+    try {
+      const currentState = this.globalAudioPlayerService.getCurrentState();
+      if (currentState) {
+        this.progress = currentState.progress || 0;
+        this.currentTime = this.progress * this.duration;
+        this.lastProgressUpdateTime = Date.now();
+        
+        console.log('🔧 Progress bar recovered:', {
+          currentTime: this.currentTime,
+          duration: this.duration,
+          progress: this.progress
+        });
+      }
+    } catch (error) {
+      console.error('Progress recovery error:', error);
+    }
+  }
+
+  cancelProgressBar() {
+    if (this.progressRAF) {
+      cancelAnimationFrame(this.progressRAF);
+      this.progressRAF = null;
+    }
+  }
+
+  private cleanupSeekManagement(): void {
+    console.log('🎵 Cleaning up seek management');
+    
+    // Cancel all pending seeks
+    this.cancelAllPendingSeeks();
+    
+    // Clear any remaining timeouts
+    if (this.seekTimeout) {
+      clearTimeout(this.seekTimeout);
+      this.seekTimeout = null;
+    }
+    
+    // Reset all seek-related state
+    this.isSeeking = false;
+    this.isSeekInProgress = false;
+    this.currentSeekId = 0;
+    this.pendingSeeks.clear();
+    this.seekAbortController = null;
+  }
+
+  formatTime(secs: number): string {
+    const minutes = Math.floor(secs / 60);
+    const seconds = Math.floor(secs % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  }
+
+  // Ambient sounds methods - now using reactive state
+  getAmbientIcon(id: string): string {
+    // Map track id to icon name - exact same as ambient settings modal
+    if (id.toLowerCase().includes('rain')) return 'water-outline';
+    if (id.toLowerCase().includes('cricket')) return 'bug-outline';
+    if (id.toLowerCase().includes('ocean')) return 'pulse-outline'; // Changed to pulse-outline for ocean waves
+    // Add more mappings as needed
+    return 'musical-notes-outline';
+  }
+
+  onAmbientVolumeChange(track: any, value: any) {
+    // Exact same logic as ambient settings modal
+    // If value is an object (dual knob), use value.lower; otherwise, use value directly
+    const volume = typeof value === 'number' ? value : value?.lower ?? 0;
+    console.log('🎵 Ambient volume change:', track.id, value, '->', volume);
+    this.ambientAudioService.setVolume(track.id, volume);
+    // Note: track.volume will be updated automatically via reactive subscription
+    console.log('🎵 Ambient volume updated:', track.id, volume);
+  }
+
+  toggleAmbientMute(track: any) {
+    // Exact same logic as ambient settings modal
+    const newVolume = track.volume > 0 ? 0 : 1;
+    console.log('🎵 Toggling ambient mute for:', track.id, 'from', track.volume, 'to', newVolume);
+    this.ambientAudioService.setVolume(track.id, newVolume);
+    // Note: track.volume will be updated automatically via reactive subscription
+    console.log('🎵 Ambient mute toggled:', track.id, newVolume);
+  }
+
+  // Progress bar mouse event handlers for dragging
+  onProgressBarMouseDown(event: MouseEvent) {
+    if (!this.duration || this.isStateSyncing) {
+      return;
+    }
+    
+    try {
+      this.isDragging = true;
+      this.seekTo(event);
+    } catch (error) {
+      console.error('🎵 [FULLSCREEN-SEEK] Error in onProgressBarMouseDown:', error);
+      console.error('🎵 [FULLSCREEN-SEEK] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
+    }
+  }
+
+  onProgressBarMouseMove(event: MouseEvent) {
+    if (!this.isDragging || !this.duration || this.isStateSyncing) {
+      return;
+    }
+    
+    try {
+      this.seekTo(event);
+    } catch (error) {
+      console.error('🎵 [FULLSCREEN-SEEK] Error in onProgressBarMouseMove:', error);
+      console.error('🎵 [FULLSCREEN-SEEK] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
+    }
+  }
+
+  onProgressBarMouseUp(event: MouseEvent) {
+    try {
+      this.isDragging = false;
+    } catch (error) {
+      console.error('🎵 [FULLSCREEN-SEEK] Error in onProgressBarMouseUp:', error);
+      console.error('🎵 [FULLSCREEN-SEEK] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
+    }
+  }
+
+  onProgressBarMouseLeave(event: MouseEvent) {
+    try {
+      if (this.isDragging) {
+        this.isDragging = false;
+      }
+    } catch (error) {
+      console.error('🎵 [FULLSCREEN-SEEK] Error in onProgressBarMouseLeave:', error);
+      console.error('🎵 [FULLSCREEN-SEEK] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
+    }
+  }
+
+  // State sync loading methods
+  private startStateSyncLoading(): void {
+    this.isStateSyncing = true;
+    // Auto-stop after 3 seconds to prevent infinite loading
+    this.stateSyncTimeout = setTimeout(() => {
+      this.stopStateSyncLoading();
+    }, 3000);
+  }
+
+  private stopStateSyncLoading(): void {
+    if (this.stateSyncTimeout) {
+      clearTimeout(this.stateSyncTimeout);
+      this.stateSyncTimeout = null;
+    }
+    this.isStateSyncing = false;
+  }
+
+  // Seek loading methods
+  private startSeekLoading(): void {
+    this.isSeekLoading = true;
+    this.seekLoadingProgress = 0;
+    this.seekLoadingTimeout = setTimeout(() => {
+      this.seekLoadingProgress = 100;
+      this.seekLoadingInterval = setInterval(() => {
+        this.seekLoadingProgress = Math.min(100, this.seekLoadingProgress + 10);
+      }, 100);
+    }, 500); // Show loading for 500ms
+  }
+
+  private stopSeekLoading(): void {
+    if (this.seekLoadingTimeout) {
+      clearTimeout(this.seekLoadingTimeout);
+      this.seekLoadingTimeout = null;
+    }
+    if (this.seekLoadingInterval) {
+      clearInterval(this.seekLoadingInterval);
+      this.seekLoadingInterval = null;
+    }
+    
+  /**
+   * Type guard to check if an event is a TouchEvent
+   * @param event The event to check
+   * @returns True if the event is a TouchEvent
+   */
+  private isTouchEvent(event: Event): event is TouchEvent {
+    return 'touches' in event;
+  }
+
+  /**
+   * Type guard to check if an event is a MouseEvent
+   */
+  private isMouseEvent(event: Event): event is MouseEvent {
+    return 'clientX' in event && !('touches' in event);
+  }
+
+  /**
+   * Handle seek operation when user interacts with the progress bar
+   * @param event The mouse or touch event that triggered the seek
+   */
+  seekTo(event: Event): void {
+    if (!this.duration || this.isStateSyncing) {
+      return;
+    }
+    
+    try {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      // Get the progress bar element
+      const progressBar = event.currentTarget as HTMLElement;
+      const rect = progressBar.getBoundingClientRect();
+      
+      // Safely get clientX based on event type
+      let clientX: number;
+      
+      if (this.isTouchEvent(event)) {
+        const touch = event.touches?.[0] || event.changedTouches?.[0];
+        if (!touch) return;
+        clientX = touch.clientX;
+      } else if (this.isMouseEvent(event)) {
+        clientX = event.clientX;
+      } else {
+        console.warn('Unsupported event type for seek:', event.type);
+        return;
+      }
+      
+      const position = clientX - rect.left;
+      const percent = position / rect.width;
+      const clampedPercent = Math.max(0, Math.min(1, percent));
+      const seekTime = clampedPercent * this.duration;
+      
+      if (isNaN(seekTime)) return;
+      
+      // Update UI immediately for responsiveness
+      this.progress = clampedPercent;
+      this.currentTime = seekTime;
+      
+      // For touch events, only perform seek on touchend to reduce operations
+      const isTouchEnd = event.type === 'touchend';
+      const hasNoActiveTouches = this.isTouchEvent(event) 
+        ? event.touches.length === 0 
+        : true;
+      
+      if (isTouchEnd || !this.isTouchEvent(event)) {
+        // Debounce rapid seeks (e.g., during drag)
+        this.debouncedSeek(seekTime, isTouchEnd || hasNoActiveTouches);
+      }
+      
+    } catch (error) {
+      console.error('🎵 [FULLSCREEN-SEEK] Error in seekTo:', error);
+      this.updateSeekErrorState();
+    }
+  }
+  
+  /**
+   * Debounces rapid seek operations to improve performance
+   * @param seekTime The time to seek to in seconds
+   * @param isFinalSeek Whether this is the final seek in a sequence (e.g., on touchend)
+   */
+  /**
+   * Debounces rapid seek operations to improve performance
+   * @param seekTime The time to seek to in seconds
+   * @param isFinalSeek Whether this is the final seek in a sequence (e.g., on touchend)
+   */
+  private debouncedSeek(seekTime: number, isFinalSeek: boolean): void {
+    // Clear any pending seek
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+    }
+    
+    // For final seeks (like on touchend), don't debounce
+    if (isFinalSeek) {
+      this.performSeekWithCancellation(seekTime);
+      return;
+    }
+    
+    // Throttle rapid seeks
+    const now = Date.now();
+    if (now - this.lastSeekTimeValue < this.SEEK_DEBOUNCE_MS) {
+      // Queue this seek to be processed after the debounce period
+      this.debounceTimeout = setTimeout(() => {
+        this.performSeekWithCancellation(seekTime);
+      }, this.SEEK_DEBOUNCE_MS);
+    } else {
+      // Process immediately if enough time has passed
+      this.performSeekWithCancellation(seekTime);
+    }
+    
+    this.lastSeekTimeValue = now;
+  }
+
+  /**
+   * Performs the actual seek operation with cancellation support
+   * Handles network state and provides visual feedback during seeks
+   */
+  /**
+   * Performs the actual seek operation with cancellation support
+   * @param seekTime The time to seek to in seconds
+   */
+  private async performSeekWithCancellation(seekTime: number): Promise<void> {
+    const seekId = ++this.currentSeekId;
+    this.pendingSeeks.add(seekId);
+    this.isSeeking = true;
+    this.isSeekInProgress = true;
+    
+    // Update UI to show seeking state
+    this.updateSeekLoadingState(true);
+    
+    // Create a new AbortController for this seek operation
+    if (this.seekAbortController) {
+      this.seekAbortController.abort();
+    }
+    this.seekAbortController = new AbortController();
+    
+    // Set a timeout to prevent the seek from hanging indefinitely
+    let seekTimeout: any = null;
+    
+    try {
+      // Set a timeout for the seek operation
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        seekTimeout = setTimeout(() => {
+          reject(new Error('Seek operation timed out'));
+        }, 10000); // 10 second timeout
+      });
+      
+      // Perform the seek operation
+      const seekPromise = this.globalAudioPlayerService.seekTo(seekTime);
+      
+      // Race the seek operation against the timeout
+      await Promise.race([
+        seekPromise,
+        timeoutPromise
+      ]);
+      
+      // Check if this seek was cancelled
+      if (this.seekAbortController?.signal.aborted) {
+        console.log('🎵 [FULLSCREEN-SEEK] Seek was cancelled');
+        return;
+      }
+      
+      // Update the UI with the new position
+      this.progress = this.duration > 0 ? seekTime / this.duration : 0;
+      this.currentTime = seekTime;
+      
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('🎵 [FULLSCREEN-SEEK] Seek was aborted');
+      } else {
+        console.error('🎵 [FULLSCREEN-SEEK] Error during seek:', error);
+        this.updateSeekErrorState();
+        
+        // If there's a network error, show feedback to the user
+        if (this.isNetworkError(error)) {
+          console.warn('🎵 [FULLSCREEN-SEEK] Network error during seek');
+          // You could show a toast or other UI feedback here
+        }
+      }
+    } finally {
+      // Clean up
+      if (seekTimeout) {
+        clearTimeout(seekTimeout);
+      }
+      
+      // Only update state if this is still the most recent seek
+      if (seekId === this.currentSeekId) {
+        this.pendingSeeks.delete(seekId);
+        this.isSeeking = false;
+        this.isSeekInProgress = false;
+        this.updateSeekLoadingState(false);
+      }
+    }
+  }
+  
+  /**
+   * Updates the UI to reflect the current seek loading state
+   * @param isLoading Whether a seek operation is in progress
+   */
+  private updateSeekLoadingState(isLoading: boolean): void {
+    this.isLoading = isLoading;
+  }
+  
+  /**
+   * Handles errors that occur during seek operations
+   */
+  private updateSeekErrorState(): void {
+    this.isSeeking = false;
+    this.isSeekInProgress = false;
+    this.updateSeekLoadingState(false);
+    
+    // Reset the progress to the last known good position
+    if (this.duration > 0) {
+      const currentState = this.globalAudioPlayerService.getCurrentState();
+      const currentTime = currentState.progress * this.duration;
+      this.currentTime = currentTime;
+      this.progress = currentTime / this.duration;
+    }
+  }
+  
+  /**
+   * Checks if an error is related to network connectivity
+   * @param error The error to check
+   * @returns True if the error is network-related
+   */
+  private isNetworkError(error: unknown): boolean {
+    if (!error) return false;
+    
+    // Check for common network error messages or status codes
+    const errorMessage = String(error).toLowerCase();
+    const errorObj = error as { status?: number };
+    
+    return (
+      errorMessage.includes('network') ||
+      errorMessage.includes('offline') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('failed to fetch') ||
+      (errorObj.status !== undefined && (errorObj.status === 0 || errorObj.status >= 500))
+    );
+  }
+  
+  /**
+   * Cancels all pending seek operations
+   */
+  private cancelAllPendingSeeks(): void {
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
+    
+    if (this.seekAbortController) {
+      this.seekAbortController.abort();
+      this.seekAbortController = null;
+    }
+    
+    this.pendingSeeks.clear();
+    this.isSeeking = false;
+    this.isSeekInProgress = false;
+    this.updateSeekLoadingState(false);
+  }
+  
+  /**
+   * Cancels all pending seek operations
+   */
+  private cancelAllPendingSeeks(): void {
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
+    
+    if (this.seekAbortController) {
+      this.seekAbortController.abort();
+      this.seekAbortController = null;
+    }
+    
+    this.pendingSeeks.clear();
+    this.isSeeking = false;
+    this.isSeekInProgress = false;
+    this.updateSeekLoadingState(false);
+  }
+
+  /**
+   * Seeks backward by SEEK_JUMP_SECONDS (default 10s)
+   */
+  seekBackward(): void {
+    if (!this.duration) return;
+    
+    const newTime = Math.max(0, (this.currentTime || 0) - this.SEEK_JUMP_SECONDS);
+    // Call the global audio player service's seekTo method instead
+    this.globalAudioPlayerService.seekTo(newTime);
+  }
+
+  /**
+   * Seeks forward by SEEK_JUMP_SECONDS (default 10s)
+   */
+  seekForward(): void {
+    if (!this.duration) return;
+    
+    const newTime = Math.min(this.duration, (this.currentTime || 0) + this.SEEK_JUMP_SECONDS);
+    // Call the global audio player service's seekTo method instead
+    this.globalAudioPlayerService.seekTo(newTime);
+  }
+}

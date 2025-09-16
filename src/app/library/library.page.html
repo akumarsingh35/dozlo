@@ -1,0 +1,107 @@
+<ion-header class="library-header">
+  <ion-toolbar>
+    <div class="header-content">
+      <div class="header-text">
+        <h1 class="page-title">Your Library</h1>
+        <p class="page-subtitle">Continue your journey with stories you love</p>
+      </div>
+      <div class="header-icon">
+        <ion-icon name="library-outline" class="library-icon"></ion-icon>
+      </div>
+    </div>
+  </ion-toolbar>
+</ion-header> 
+<ion-content>
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-container">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading your library...</p>
+  </div>
+
+  <!-- Content when loaded -->
+  <div *ngIf="!isLoading">
+    <!-- Continue Listening Section -->
+  <div class="section" *ngIf="continueListening.length > 0">
+    <h2 class="section-title">Continue Listening</h2>
+    <swiper-container #storySlider slides-per-view="2.2" space-between="15">
+      <swiper-slide *ngFor="let story of continueListening">
+        <div class="listening-card" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')" (click)="onPlay(story)">
+          <div class="card-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
+          <img [src]="story?.imageUrl || ''" class="card-background" loading="lazy"/>
+          <div class="play-icon-wrapper">
+            <ion-icon *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" name="play" class="play-icon"></ion-icon>
+            <ion-spinner *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')" name="crescent" class="play-icon"></ion-spinner>
+          </div>
+          <div class="card-footer">
+            <div class="progress-bar-background">
+              <div class="progress-bar-foreground" [style.width.%]="story['progress'] || 0"></div>
+            </div>
+            <div class="card-text">
+              <div class="title">{{ story.title }}</div>
+              <div class="narrator" *ngIf="story.narratorName">{{ story.narratorName }}</div>
+            </div>
+          </div>
+        </div>
+      </swiper-slide>
+    </swiper-container>
+  </div>
+
+  <!-- Your Favorites Section -->
+  <div class="section" *ngIf="yourFavorites.length > 0">
+    <h2 class="section-title">Your Favorites ({{ yourFavorites.length }})</h2>
+    <swiper-container #storySlider slides-per-view="2.2" space-between="15">
+      <swiper-slide *ngFor="let story of yourFavorites">
+        <div class="listening-card" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')">
+          <div class="card-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
+          <img [src]="story?.imageUrl || ''" class="card-background" loading="lazy"/>
+          <div class="play-icon-wrapper" (click)="onPlay(story)">
+            <ion-icon *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" name="play" class="play-icon"></ion-icon>
+            <ion-spinner *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')" name="crescent" class="play-icon"></ion-spinner>
+          </div>
+          <div class="card-footer">
+            <div class="progress-bar-background">
+              <div class="progress-bar-foreground" [style.width.%]="0"></div>
+            </div>
+            <div class="card-text">
+              <div class="title">{{ story.title }}</div>
+              <div class="subtitle">{{ story.subTitle }}</div>
+            </div>
+          </div>
+        </div>
+      </swiper-slide>
+    </swiper-container>
+  </div>
+
+  <!-- Recently Played Section -->
+  <div class="section recently-played-section" *ngIf="recentlyPlayed.length > 0">
+    <h2 class="section-title">Recently Played</h2>
+    <ul class="recently-played-list">
+      <li *ngFor="let story of recentlyPlayed" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')" (click)="onPlay(story)">
+        <div class="list-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
+        <img [src]="story?.imageUrl || ''" class="item-image" loading="lazy"/>
+        <div class="item-text">
+          <div class="title">{{ story.title }}</div>
+          <div class="narrator" *ngIf="story.narratorName">{{ story.narratorName }}</div>
+          <div class="play-info" *ngIf="isPlayedStory(story)">
+            <small>Played {{ getPlayCount(story) }} time{{ getPlayCount(story) > 1 ? 's' : '' }}</small>
+          </div>
+        </div>
+        <ion-icon name="play-outline" class="play-icon"></ion-icon>
+      </li>
+    </ul>
+  </div>
+
+  <!-- No Data Message -->
+  <div *ngIf="continueListening.length === 0 && recentlyPlayed.length === 0" class="no-data">
+    <p>No stories found in your library.</p>
+    <p>Start listening to stories to see them here!</p>
+  </div>
+  
+  </div>
+
+  <div class="footer-spacer"></div>
+</ion-content>
+
+<!-- <ion-footer>
+  <app-nav-footer></app-nav-footer>
+</ion-footer> -->

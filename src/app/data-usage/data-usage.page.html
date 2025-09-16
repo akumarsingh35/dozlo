@@ -1,0 +1,83 @@
+<ion-header [translucent]="false">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="backHref"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ dataUsageContent?.title || 'Data Usage' }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="data-usage-content">
+  <div class="data-usage-container">
+    <!-- Loading State -->
+    <div *ngIf="isLoading" class="loading-container">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading data usage information...</p>
+    </div>
+    
+    <!-- Dynamic Data Usage Content -->
+    <div *ngIf="!isLoading && dataUsageContent">
+      <div class="data-usage-header">
+        <div class="data-icon">
+          <ion-icon name="cellular-outline"></ion-icon>
+        </div>
+        <h1>{{ dataUsageContent.header.title }}</h1>
+        <p>{{ dataUsageContent.header.subtitle }}</p>
+      </div>
+
+      <section class="usage-overview">
+        <h2>{{ dataUsageContent.usageOverview.title }}</h2>
+        <div class="usage-items">
+          <div class="usage-item" *ngFor="let item of dataUsageContent.usageOverview.items">
+            <div class="usage-icon">
+              <ion-icon [name]="item.icon"></ion-icon>
+            </div>
+            <div class="usage-content">
+              <h3>{{ item.category }}</h3>
+              <p>{{ item.description }}</p>
+              <span class="data-amount">{{ item.dataUsage }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="data-saving">
+        <h2>{{ dataUsageContent.dataSavingTips.title }}</h2>
+        <div class="tips-list">
+          <div class="tip-item" *ngFor="let tip of dataUsageContent.dataSavingTips.tips">
+            <div class="tip-icon">
+              <ion-icon name="bulb-outline"></ion-icon>
+            </div>
+            <div class="tip-content">
+              <h3>{{ tip.tip }}</h3>
+              <p>{{ tip.description }}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="privacy-note">
+        <h2>{{ dataUsageContent.privacyNote.title }}</h2>
+        <p>{{ dataUsageContent.privacyNote.content }}</p>
+        <ion-button fill="outline" (click)="navigateToPrivacyPolicy()">
+          <ion-icon name="shield-checkmark-outline" slot="start"></ion-icon>
+          {{ dataUsageContent.privacyNote.privacyPolicyButton }}
+        </ion-button>
+      </section>
+
+      <section class="contact-info">
+        <h2>{{ dataUsageContent.contactInfo.title }}</h2>
+        <p>{{ dataUsageContent.contactInfo.content }}</p>
+      </section>
+    </div>
+
+    <!-- Fallback Content -->
+    <div *ngIf="!isLoading && !dataUsageContent" class="fallback-content">
+      <h1>Data Usage</h1>
+      <p>Content not available. Please try again later.</p>
+    </div>
+  </div>
+
+  <div class="footer-spacer"></div>
+</ion-content>
+

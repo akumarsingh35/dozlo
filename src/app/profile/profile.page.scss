@@ -1,0 +1,427 @@
+ion-content {
+  --background: var(--ion-background-color) !important;
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --color: #fff;
+  /* Remove custom padding-top to match other pages */
+  --padding-top: 0 !important;
+  /* Use global dynamic padding for footer and audio player */
+  --padding-bottom: calc(44px + 56px + env(safe-area-inset-bottom, 20px));
+  --overflow: auto;
+  --height: 100%;
+  height: 100%;
+  
+  /* Hide scrollbars */
+  &::-webkit-scrollbar {
+    display: none !important;
+  }
+  
+  & * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+}
+
+/* Mobile-specific scrollbar hiding */
+@media screen and (max-width: 768px) {
+  ion-content {
+    &::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
+    
+    & * {
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
+  }
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  
+  ion-spinner {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    --color: #a299f9;
+  }
+  
+  p {
+    color: #a299f9;
+    font-size: 16px;
+    margin: 0;
+  }
+}
+
+/* Temporary debugging - let's see if this helps identify the scrollbar source */
+.user-profile-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  padding-bottom: 30px;
+  text-align: center;
+  margin-bottom: 20px;
+  
+  /* Force hide any scrollbars */
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  
+  & * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  ion-avatar {
+    width: 100px;
+    height: 100px;
+    margin-bottom: 20px;
+    border: 4px solid rgba(127, 88, 255, 0.2);
+    box-shadow: 0 8px 25px rgba(127, 88, 255, 0.15);
+    transition: all 0.3s ease;
+    
+    &:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 35px rgba(127, 88, 255, 0.25);
+    }
+  }
+
+  .profile-initials {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #7f58ff, #a299f9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    border: 4px solid rgba(127, 88, 255, 0.2);
+    margin-bottom: 20px;
+    box-shadow: 0 8px 25px rgba(127, 88, 255, 0.15);
+    transition: all 0.3s ease;
+    
+    &:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 35px rgba(127, 88, 255, 0.25);
+    }
+  }
+
+  .user-name {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: #fff;
+  }
+
+  .user-email {
+    font-size: 1.1rem;
+    color: #a299f9;
+    margin: 0 0 8px 0;
+    font-weight: 500;
+  }
+
+  .app-version {
+    font-size: 0.9rem;
+    color: #8a83a8;
+    margin: 0 0 24px 0;
+    font-weight: 400;
+    opacity: 0.8;
+  }
+}
+
+.card {
+  background: rgba(127, 88, 255, 0.05);
+  border: 1px solid rgba(127, 88, 255, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  
+  /* Force hide scrollbars on cards */
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  
+  & * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  &:hover {
+    background: rgba(127, 88, 255, 0.08);
+    border-color: rgba(127, 88, 255, 0.15);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(127, 88, 255, 0.1);
+  }
+
+  .card-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    color: #fff;
+    position: relative;
+    
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 20px;
+      background: linear-gradient(135deg, #7f58ff, #a299f9);
+      border-radius: 2px;
+      margin-left: -12px;
+    }
+  }
+
+  ion-list {
+    background: transparent;
+    padding: 0;
+    
+    /* Force hide scrollbars on lists */
+    &::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
+    
+    & * {
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
+  }
+
+  ion-item {
+    --background: transparent;
+    --padding-start: 0;
+    --inner-padding-end: 0;
+    --min-height: 56px;
+    --border-radius: 12px;
+    color: #fff;
+    margin-bottom: 4px;
+    transition: all 0.3s ease;
+    
+    /* Force hide scrollbars on items */
+    &::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
+    
+    & * {
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
+
+    &:hover {
+      --background: rgba(127, 88, 255, 0.1);
+      transform: translateX(4px);
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    ion-icon {
+      color: #7f58ff;
+      font-size: 1.4rem;
+      margin-right: 16px;
+    }
+
+    ion-label {
+      font-weight: 500;
+      font-size: 1rem;
+    }
+
+    .item-note {
+      color: #a299f9;
+      font-weight: 500;
+    }
+  }
+}
+
+/* Avoid visible empty space before the footer by trimming the last card's margin */
+.card:last-of-type {
+  margin-bottom: 4px;
+}
+
+ion-footer {
+  z-index: 1000 !important; /* Prevent overlap */
+  position: fixed !important; /* Pin to bottom */
+  bottom: 0;
+  --padding-bottom: env(safe-area-inset-bottom) !important;
+}
+
+// Sign-in prompt styles
+.sign-in-container {
+  padding: calc(env(safe-area-inset-top, 0px) + 20px) 0 12px 0;
+  text-align: center;
+  /* Let the content flow from the top; avoid forcing large vertical gaps */
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.sign-in-header {
+  margin-bottom: 24px;
+  
+  .sign-in-icon {
+    margin-bottom: 16px;
+    
+    ion-icon {
+      font-size: 100px;
+      color: #7f58ff;
+      opacity: 0.9;
+      filter: drop-shadow(0 4px 8px rgba(127, 88, 255, 0.3));
+    }
+  }
+  
+  .sign-in-title {
+      font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+      margin: 0 0 12px 0;
+    line-height: 1.2;
+  }
+  
+  .sign-in-subtitle {
+      font-size: 16px;
+    color: #b3a9c9;
+    margin: 0;
+    line-height: 1.5;
+    font-weight: 400;
+  }
+}
+
+.sign-in-benefits {
+  margin-bottom: 48px;
+  
+  .benefit-item {
+    display: flex;
+    align-items: flex-start;
+    text-align: left;
+    margin-bottom: 20px;
+    padding: 20px;
+    background: rgba(127, 88, 255, 0.05);
+    border-radius: 16px;
+    border: 1px solid rgba(127, 88, 255, 0.1);
+    transition: all 0.3s ease;
+    
+    &:hover {
+      background: rgba(127, 88, 255, 0.08);
+      border-color: rgba(127, 88, 255, 0.15);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(127, 88, 255, 0.1);
+    }
+    
+    .benefit-icon {
+      font-size: 28px;
+      color: #7f58ff;
+      margin-right: 20px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    
+    .benefit-content {
+      flex: 1;
+      
+      h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #fff;
+        margin: 0 0 6px 0;
+        line-height: 1.3;
+      }
+      
+      p {
+        font-size: 15px;
+        color: #b3a9c9;
+        margin: 0;
+        line-height: 1.5;
+      }
+    }
+  }
+}
+
+.sign-in-action {
+  .sign-in-button {
+    --background: linear-gradient(135deg, #7f58ff, #a299f9);
+    --background-hover: #6a4fd8;
+    --background-activated: #6a4fd8;
+    --color: #fff;
+    --border-radius: 12px;
+    height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(127, 88, 255, 0.3);
+    transition: all 0.3s ease;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(127, 88, 255, 0.4);
+    }
+    
+    ion-icon {
+      font-size: 18px;
+      margin-right: 8px;
+    }
+    
+    ion-spinner {
+      margin-left: 8px;
+    }
+  }
+  
+  .sign-in-note {
+    font-size: 14px;
+    color: #8a83a8;
+    margin: 0 0 20px 0;
+    line-height: 1.5;
+  }
+  
+  .terms-note {
+    font-size: 0.8rem;
+    color: var(--ion-color-medium);
+    text-align: center;
+    margin-top: 16px;
+    line-height: 1.4;
+    
+    .link {
+      color: var(--ion-color-primary);
+      text-decoration: none;
+      cursor: pointer;
+      
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+.footer-spacer {
+  height: calc(44px + 56px + env(safe-area-inset-bottom, 20px));
+  visibility: hidden;
+}
+
+/* Reduce bottom padding of the very last section when on sign-in template */
+ion-content .card:last-of-type {
+  margin-bottom: 0;
+}

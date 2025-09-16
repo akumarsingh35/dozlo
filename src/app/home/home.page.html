@@ -1,0 +1,209 @@
+<ion-header>
+  <ion-toolbar class="home-toolbar">
+    <div class="home-title">Dozlo</div>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content #contentContainer>
+  <!-- Loading Spinner -->
+  <div *ngIf="!imagesLoaded && !currentSections.length" class="loading-container">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading stories...</p>
+  </div>
+
+  <div *ngIf="imagesLoaded || currentSections.length > 0">
+    <div class="unlock-banner" *ngIf="showLoginBanner">
+      <div class="banner-text">
+        <h2>Unlock all stories</h2>
+        <p>Sign in to access exclusive content</p>
+      </div>
+      <div class="banner-action">
+        <ion-button expand="block" fill="clear" class="login-signup-button" (click)="onSignIn()">Login/Signup</ion-button>
+      </div>
+    </div>
+
+    <!-- CATEGORY SLIDER -->
+    <div class="category-scroller" *ngIf="categories.length > 0">
+      <button
+        *ngFor="let category of categories"
+        [class.active]="selectedCategory?.name === category.name"
+        [disabled]="isCategoryLoading"
+        (click)="selectCategory(category)"
+        class="category-button"
+        [class.loading]="isCategoryLoading"
+      >
+        <ion-spinner *ngIf="isCategoryLoading && selectedCategory?.name === category.name" name="crescent" class="category-spinner"></ion-spinner>
+        {{ category.name }}
+      </button>
+    </div>
+
+    <!-- SECTIONS -->
+    <div *ngFor="let section of currentSections">
+      <!-- Section Header - Centered for cards, normal for others -->
+      <div class="section-header" [class.centered-header]="section.sectionType === 'cards'">
+        <h3>{{ section.title }}</h3>
+        <ion-button
+          *ngIf="section.sectionType !== 'cards'"
+          fill="clear"
+          class="see-all"
+          (click)="onSeeAll(section)"
+        >
+          See All
+        </ion-button>
+      </div>
+
+      <!-- Slider Cards Section Type -->
+      <div
+        *ngIf="section.sectionType === 'sliderCards' && section.stories && section.stories.length > 0 && !isCategoryLoading"
+        class="custom-slider-container"
+        (pointerdown)="onSliderPointerDown($event, section.id)"
+        (pointermove)="onSliderPointerMove($event, section.id)"
+        (pointerup)="onSliderPointerUp($event, section.id)"
+        (pointerleave)="onSliderPointerLeave($event, section.id)"
+        [style.cursor]="getSliderCardState(section.id).isDragging ? 'grabbing' : 'grab'"
+      >
+        <div 
+          class="custom-slider-track"
+          [style.transform]="'translateX(' + getSliderCardState(section.id).translateX + 'px)'"
+          [style.transition]="getSliderCardState(section.id).isDragging ? 'none' : 'transform 0.3s ease'"
+          [style.gap]="getResponsiveCardDimensions().gap + 'px'"
+        >
+          <div 
+            *ngFor="let story of section.stories; trackBy: trackByStory" 
+            class="story-card"
+            [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')"
+            [style.width]="getResponsiveCardDimensions().width + 'px'"
+            [style.min-width]="getResponsiveCardDimensions().width + 'px'"
+          >
+            <div class="slider-card-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
+            <div class="card-media" style="position: relative;">
+              <img [src]="story?.imageUrl || ''" class="card-img" loading="lazy" />
+              <div class="play-icon-wrapper" (click)="onPlay(story)">
+                <ion-icon 
+                  *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" 
+                  name="play" 
+                  class="play-icon">
+                </ion-icon>
+                <ion-spinner 
+                  *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')" 
+                  name="crescent" 
+                  class="play-icon">
+                </ion-spinner>
+              </div>
+              <div class="duration">{{ story.duration || '0:00' }}</div>
+            </div>
+            <div class="card-text">
+              <div class="title">{{ story.title }}</div>
+              <div class="subtitle">{{ story.subTitle }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cards Section Type -->
+      <div *ngIf="section.sectionType === 'cards' && section.stories && section.stories.length > 0" class="book-club-section">
+        <div class="book-club-grid">
+          <div *ngFor="let story of section.stories; trackBy: trackByStory" class="book-club-card" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')" (click)="onPlay(story)">
+            <div class="book-card-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
+            <div class="book-card-image">
+              <img 
+                [src]="story?.imageUrl || ''" 
+                class="book-card-img" 
+                loading="lazy"
+                [style.opacity]="story.imageLoaded ? '1' : '0'"
+                (load)="onImageLoad(story)"
+                (error)="onImageError($event)"
+              />
+              <div class="book-play-icon-wrapper" (click)="onPlay(story); $event.stopPropagation()">
+                <ion-icon 
+                  *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" 
+                  name="play" 
+                  class="book-play-icon">
+                </ion-icon>
+                <ion-spinner 
+                  *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')" 
+                  name="crescent" 
+                  class="book-play-icon">
+                </ion-spinner>
+              </div>
+            </div>
+            <div class="book-card-content">
+              <div class="book-card-title">{{ story.title }}</div>
+              <div class="book-card-subtitle">{{ story.subTitle }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stacks Section Type -->
+      <div *ngIf="section.sectionType === 'stacks' && section.stories && section.stories.length > 0" class="stacks-container">
+        <div class="stacks-slider" 
+             (pointerdown)="onPointerDown($event, section.id)"
+             (pointermove)="onPointerMove($event, section.id)"
+             (pointerup)="onPointerUp($event, section.id)"
+             (pointerleave)="onPointerLeave($event, section.id)"
+             [style.cursor]="getSliderState(section.id).isDragging ? 'grabbing' : 'grab'">
+          <div 
+            class="stacks-track" 
+            [style.transform]="'translateX(' + (-getSliderState(section.id).currentSlideIndex * slideWidth + getSliderState(section.id).dragOffset) + 'px)'"
+            [style.transition]="getSliderState(section.id).isDragging ? 'none' : 'transform 0.3s ease'"
+          >
+            <div 
+              *ngFor="let storyGroup of getStoryGroups(section.stories, 3); let i = index; trackBy: trackByStoryGroup" 
+              class="story-stack-list"
+            >
+              <div *ngFor="let story of storyGroup; trackBy: trackByStory" class="story-stack-item" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')">
+                <div class="stack-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
+                <div class="story-item-image">
+                  <img 
+                    [src]="story?.imageUrl || ''" 
+                    class="story-img" 
+                    loading="lazy"
+                    [style.opacity]="story.imageLoaded ? '1' : '0'"
+                    (load)="onImageLoad(story)"
+                    (error)="onImageError($event)"
+                  />
+                  <div 
+                    class="play-icon-wrapper" 
+                    (click)="onPlay(story); $event.stopPropagation()"
+                    (touchstart)="$event.stopPropagation()"
+                    (mousedown)="$event.stopPropagation()">
+                    <ion-icon 
+                      *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" 
+                      name="play" 
+                      class="play-icon">
+                    </ion-icon>
+                    <ion-spinner 
+                      *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')" 
+                      name="crescent" 
+                      class="play-icon">
+                    </ion-spinner>
+                  </div>
+                  <div class="duration-badge">{{ story.duration || '0:00' }}</div>
+                </div>
+                <div class="story-item-content">
+                  <div class="story-title">{{ story.title }}</div>
+                  <div class="story-subtitle">{{ story.subTitle }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Stories Message -->
+      <div *ngIf="!section.stories || section.stories.length === 0" class="no-stories">
+        <p>No stories found in this section.</p>
+      </div>
+    </div>
+
+    <!-- No Sections Message -->
+    <div *ngIf="currentSections.length === 0 && !isCategoryLoading" class="no-sections">
+      <p>No sections found for the selected category.</p>
+      <p>Please try refreshing the page or selecting a different category.</p>
+    </div>
+    
+    <div class="footer-spacer"></div>
+  </div>
+</ion-content>
+

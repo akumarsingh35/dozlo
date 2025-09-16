@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App surface colors to keep native system bars consistent with the footer -->
+    <color name="dozlo_surface_dark">#120f29</color>
+    <color name="dozlo_primary">#7F58FF</color>
+</resources>
+
+
+
+
+

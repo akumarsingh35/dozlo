@@ -1,0 +1,135 @@
+<ion-content>
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-container">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading profile...</p>
+  </div>
+
+  <!-- Profile content for signed-in users -->
+  <div *ngIf="!isLoading && user; else signInPrompt">
+    <div class="user-profile-section">
+      <ion-avatar *ngIf="user?.photoURL && user?.photoURL !== '' && !imageLoadError; else initialsBlock">
+        <img [src]="user?.photoURL" 
+             alt="User Avatar" 
+             referrerpolicy="no-referrer"
+             crossorigin="anonymous"
+             (error)="onImageError($event)"
+             (load)="onImageLoad($event)" />
+      </ion-avatar>
+      <ng-template #initialsBlock>
+        <div class="profile-initials">{{ initials }}</div>
+      </ng-template>
+      <h1 class="user-name">{{ user?.displayName || 'User' }}</h1>
+      <p class="user-email">{{ user?.email }}</p>
+      <p class="app-version">v{{ appVersion }}</p>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">My Activity</h2>
+      <ion-list lines="none">
+        <ion-item>
+          <ion-icon name="time-outline" slot="start"></ion-icon>
+          <ion-label>{{ totalListeningTime }} listened</ion-label>
+          <ion-text slot="end" class="item-note">{{ recentListeningTime }}</ion-text>
+        </ion-item>
+      </ion-list>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Settings</h2>
+      <ion-list lines="none">
+        <ion-item button detail="true" *ngFor="let item of settingsItems" (click)="onSettingClick(item)">
+          <ion-icon [name]="item.icon" slot="start"></ion-icon>
+          <ion-label>{{ item.text }}</ion-label>
+        </ion-item>
+      </ion-list>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Legal & Information</h2>
+      <ion-list lines="none">
+        <ion-item
+          button
+          detail="true"
+          *ngFor="let item of legalItems"
+          (click)="onLegalClick(item)"
+        >
+          <ion-icon [name]="item.icon" slot="start"></ion-icon>
+          <ion-label>{{ item.text }}</ion-label>
+        </ion-item>
+      </ion-list>
+    </div>
+  </div>
+
+  <!-- Sign-in prompt for non-signed-in users -->
+  <ng-template #signInPrompt>
+    <div class="sign-in-container">
+      <div class="sign-in-header">
+        <div class="sign-in-icon">
+          <ion-icon name="person-circle-outline"></ion-icon>
+        </div>
+        <h1 class="sign-in-title">Welcome to Dozlo</h1>
+        <p class="sign-in-subtitle">Sign in to unlock your personalized experience</p>
+      </div>
+
+      <div class="sign-in-benefits">
+        <div class="benefit-item">
+          <ion-icon name="diamond-outline" class="benefit-icon"></ion-icon>
+          <div class="benefit-content">
+            <h3>Exclusive Content</h3>
+            <p>Access premium sleep stories and guided meditations</p>
+          </div>
+        </div>
+        
+        <div class="benefit-item">
+          <ion-icon name="sparkles-outline" class="benefit-icon"></ion-icon>
+          <div class="benefit-content">
+            <h3>Personalized Recommendations</h3>
+            <p>Get tailored suggestions based on your preferences</p>
+          </div>
+        </div>
+        
+        <div class="benefit-item">
+          <ion-icon name="bookmark-outline" class="benefit-icon"></ion-icon>
+          <div class="benefit-content">
+            <h3>Save Your Favorites</h3>
+            <p>Bookmark and organize your favorite sleep stories</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="sign-in-action">
+        <ion-button 
+          expand="block" 
+          class="sign-in-button" 
+          (click)="signInWithGoogle()"
+          [disabled]="isLoading"
+          shape="round">
+          <ion-icon name="logo-google" slot="start"></ion-icon>
+          <ion-spinner *ngIf="isLoading" slot="end" name="crescent"></ion-spinner>
+          {{ isLoading ? 'Signing in...' : 'Continue with Google' }}
+        </ion-button>
+        <p class="sign-in-note">Quick and secure sign-in with your Google account</p>
+        <p class="terms-note">
+          By continuing, you agree to our 
+          <a (click)="navigateToPrivacyPolicy()" class="link">Privacy Policy</a> 
+          and 
+          <a (click)="navigateToTerms()" class="link">Terms of Use</a>.
+        </p>
+      </div>
+    </div>
+  </ng-template>
+
+  <!-- Feedback & Support section - visible for all users -->
+  <div class="card">
+    <h2 class="card-title">Feedback & Support</h2>
+    <ion-list lines="none">
+      <ion-item button detail="true" *ngFor="let item of feedbackSupportItems" (click)="onFeedbackSupportClick(item)">
+        <ion-icon [name]="item.icon" slot="start"></ion-icon>
+        <ion-label>{{ item.text }}</ion-label>
+      </ion-item>
+    </ion-list>
+  </div>
+
+  <div class="footer-spacer"></div>
+</ion-content>

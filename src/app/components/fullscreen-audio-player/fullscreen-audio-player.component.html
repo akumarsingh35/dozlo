@@ -1,0 +1,90 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="dismiss()">
+        <ion-icon slot="icon-only" name="chevron-down-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="fullscreen-content">
+  <div class="fullscreen-audio-container">
+    <!-- Main Audio Image -->
+    <div class="audio-image-container">
+      <img [src]="photoUrl" alt="Story Artwork" class="main-audio-image" [class.loading]="isLoading" />
+      <div class="audio-loading-overlay" *ngIf="isLoading">
+        <div class="audio-loading-indicator"></div>
+      </div>
+    </div>
+
+    <!-- Audio Info -->
+    <div class="audio-info">
+      <h1 class="audio-title">{{ title }}</h1>
+      <p class="audio-subtitle">{{ description }}</p>
+      <p class="audio-narrator" *ngIf="narrator">Narrated by {{ narrator }}</p>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-container">
+      <ion-range
+        aria-label="Seek slider"
+        class="progress-bar"
+        [class.seek-loading]="isDragging"
+        [value]="progress * 100"
+        (ionKnobMoveStart)="onProgressBarDragStart()"
+        (ionInput)="onProgressBarDragging($event)"
+        (ionKnobMoveEnd)="onProgressBarDragEnd($event)"
+        [disabled]="isLoading"
+        [pin]="true"
+        [pinFormatter]="pinFormatter"
+      ></ion-range>
+      <div class="time-display">
+        <span class="current-time">{{ formatTime(currentTime) }}</span>
+        <span class="total-time">{{ formatTime(duration) }}</span>
+      </div>
+    </div>
+
+    <!-- Playback Controls -->
+    <div class="playback-controls">
+      <ion-button fill="clear" class="control-btn seek-backward" (click)="seekBackward()" [disabled]="isLoading">
+        <ion-icon slot="icon-only" name="play-back-outline"></ion-icon>
+      </ion-button>
+      <ion-button fill="clear" class="control-btn play-pause" (click)="togglePlay()" [disabled]="isLoading">
+        <ion-icon *ngIf="!isLoading" slot="icon-only" [name]="isPlaying ? 'pause' : 'play'"></ion-icon>
+        <ion-spinner *ngIf="isLoading" name="crescent"></ion-spinner>
+      </ion-button>
+            <ion-button fill="clear" class="control-btn seek-forward" (click)="seekForward()" [disabled]="isLoading">
+        <ion-icon slot="icon-only" name="play-forward"></ion-icon>
+      </ion-button>
+    </div>
+
+    <!-- Ambient Sounds Section -->
+    <div class="ambient-sounds-section">
+      <div class="section-title">Ambient Sounds</div>
+      <div class="track-list">
+        <div *ngFor="let track of ambientTracks" class="track-row">
+          <div class="track-icon" [ngClass]="track.id">
+            <ion-icon [name]="getIcon(track.id)"></ion-icon>
+          </div>
+          <div class="track-main">
+            <span class="track-name">{{ track.name }}</span>
+            <ion-range
+              class="custom-range"
+              [value]="track.volume * 100"
+              (ionChange)="onAmbientVolumeChange(track, $event)"
+              [min]="0"
+              [max]="100"
+              [step]="1"
+            ></ion-range>
+          </div>
+          <button class="mute-btn" (click)="toggleMute(track)">
+            <ion-icon [name]="track.volume > 0 ? 'volume-high-outline' : 'volume-mute-outline'"></ion-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="safe-space">
+    </div>
+  </div>
+</ion-content>

@@ -1,0 +1,81 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button 
+        defaultHref="/explore"
+        class="custom-back-button">
+      </ion-back-button>
+    </ion-buttons>
+    <ion-title class="custom-title">{{ category || 'Category' }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Loading Spinner -->
+  <div *ngIf="isLoading" class="loading-container">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading stories...</p>
+  </div>
+
+  <!-- Stories List -->
+  <div class="stories-list" *ngIf="!isLoading">
+    <!-- Empty State -->
+    <div *ngIf="!stories || stories.length === 0" class="empty-state">
+      <div class="empty-icon">
+        <ion-icon name="musical-notes-outline"></ion-icon>
+      </div>
+      <h3>No stories found</h3>
+      <p>Check back later for new content</p>
+    </div>
+
+    <!-- Stories List -->
+    <div *ngIf="filteredStories && filteredStories.length > 0" class="story-items">
+      <div 
+        *ngFor="let story of filteredStories; trackBy: trackByStory" 
+        class="story-item"
+        [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')"
+      >
+        <!-- Story Thumbnail -->
+        <div class="story-thumbnail">
+          <img 
+            [src]="story?.imageUrl || story?.image || ''" 
+            [alt]="story.title"
+            class="thumbnail-image"
+            loading="lazy"
+          />
+          
+          <!-- Play Icon Overlay -->
+          <div class="play-icon-wrapper" (click)="onPlayStory(story)">
+            <ion-icon 
+              *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" 
+              name="play" 
+              class="play-icon">
+            </ion-icon>
+            <ion-spinner 
+              *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')" 
+              name="crescent" 
+              class="play-icon">
+            </ion-spinner>
+          </div>
+          
+          <!-- Shining Effect -->
+          <div class="shining-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
+          
+          <!-- Duration Badge -->
+          <div class="duration-badge" *ngIf="story.duration">
+            {{ story.duration }}
+          </div>
+        </div>
+        
+        <!-- Story Details -->
+        <div class="story-details">
+          <h3 class="story-title">{{ story.title }}</h3>
+          <p class="story-category">{{ story.category || story.subTitle || story.subtitle || 'Story' }}</p>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+
+  <div class="footer-spacer"></div>
+</ion-content>

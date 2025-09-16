@@ -1,0 +1,55 @@
+<ion-content class="sign-in-content">
+  <div class="sign-in-container">
+    <div class="sign-in-header-section">
+      <div class="logo-text">Dozlo</div>
+      <h1 class="sign-in-title">Hey Stranger</h1>
+      <p class="sign-in-subtitle">Sign in to continue your sleep journey</p>
+    </div>
+
+    <div class="sign-in-benefits">
+      <div class="benefit-item">
+        <ion-icon name="diamond-outline" class="benefit-icon"></ion-icon>
+        <div class="benefit-content">
+          <h3>Exclusive Content</h3>
+          <p>Access premium sleep stories and guided meditations</p>
+        </div>
+      </div>
+      
+      <div class="benefit-item">
+        <ion-icon name="sparkles-outline" class="benefit-icon"></ion-icon>
+        <div class="benefit-content">
+          <h3>Personalized Recommendations</h3>
+          <p>Get tailored suggestions based on your preferences</p>
+        </div>
+      </div>
+      
+      <div class="benefit-item">
+        <ion-icon name="bookmark-outline" class="benefit-icon"></ion-icon>
+        <div class="benefit-content">
+          <h3>Save Your Favorites</h3>
+          <p>Bookmark and organize your favorite sleep stories</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sign-in-action">
+      <ion-button 
+        expand="block" 
+        class="sign-in-button" 
+        (click)="signInWithGoogle()"
+        [disabled]="isLoading"
+        shape="round">
+        <ion-icon name="logo-google" slot="start"></ion-icon>
+        <ion-spinner *ngIf="isLoading" slot="end" name="crescent"></ion-spinner>
+        {{ isLoading ? 'Signing in...' : 'Continue with Google' }}
+      </ion-button>
+      <p class="sign-in-note">Quick and secure sign-in with your Google account</p>
+      <p class="terms-note">
+        By continuing, you agree to our 
+        <a (click)="navigateToPrivacyPolicy()" class="link">Privacy Policy</a> 
+        and 
+        <a (click)="navigateToTerms()" class="link">Terms of Use</a>.
+      </p>
+    </div>
+  </div>
+</ion-content>

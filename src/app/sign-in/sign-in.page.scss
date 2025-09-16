@@ -1,0 +1,149 @@
+ion-content {
+  --background: var(--ion-background-color) !important;
+  --padding-bottom: calc(120px + env(safe-area-inset-bottom, 20px));
+  --overflow: auto;
+}
+
+
+
+.sign-in-content {
+  --background: #120f29;
+}
+
+.sign-in-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 20px;
+  text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.sign-in-header-section {
+  margin-bottom: 32px;
+  
+  .logo-text {
+    font-family: 'Montserrat', 'Roboto', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 700;
+    color: #7f58ff;
+    margin-bottom: 16px;
+    letter-spacing: 2px;
+  }
+  
+  .sign-in-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 12px 0;
+    line-height: 1.2;
+  }
+  
+  .sign-in-subtitle {
+    font-size: 16px;
+    color: #b3a9c9;
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+.sign-in-benefits {
+  margin-bottom: 32px;
+  width: 100%;
+  
+  .benefit-item {
+    display: flex;
+    align-items: flex-start;
+    text-align: left;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: rgba(127, 88, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(127, 88, 255, 0.1);
+    
+    .benefit-icon {
+      font-size: 24px;
+      color: #7f58ff;
+      margin-right: 16px;
+      margin-top: 2px;
+    }
+    
+    .benefit-content {
+      flex: 1;
+      
+      h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #fff;
+        margin: 0 0 8px 0;
+      }
+      
+      p {
+        font-size: 14px;
+        color: #b3a9c9;
+        margin: 0;
+        line-height: 1.4;
+      }
+    }
+  }
+}
+
+.sign-in-action {
+  width: 100%;
+  
+  .sign-in-button {
+    --background: linear-gradient(135deg, #7f58ff, #a299f9);
+    --background-hover: #6a4fd8;
+    --background-activated: #6a4fd8;
+    --color: #fff;
+    --border-radius: 12px;
+    height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 15px rgba(127, 88, 255, 0.3);
+    transition: all 0.3s ease;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(127, 88, 255, 0.4);
+    }
+    
+    ion-icon {
+      font-size: 18px;
+      margin-right: 8px;
+    }
+    
+    ion-spinner {
+      margin-left: 8px;
+    }
+  }
+  
+  .sign-in-note {
+    font-size: 14px;
+    color: #b3a9c9;
+    margin: 0 0 16px 0;
+    line-height: 1.4;
+  }
+  
+  .terms-note {
+    font-size: 12px;
+    color: #8a7f9f;
+    margin: 0;
+    line-height: 1.4;
+    
+    .link {
+      color: #7f58ff;
+      text-decoration: none;
+      cursor: pointer;
+      
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+

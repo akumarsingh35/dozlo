@@ -1,0 +1,268 @@
+/*
+ * Fullscreen Audio Player Component Styles
+ * -------------------------------------------
+ */
+
+// Variables & Theming
+:host {
+  --player-background: var(--ion-background-color);
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --accent-primary: #667eea;
+  --accent-secondary: #764ba2;
+  --control-background: rgba(255, 255, 255, 0.1);
+  --control-background-hover: rgba(255, 255, 255, 0.2);
+  --slider-track-background: rgba(255, 255, 255, 0.3);
+  --slider-track-fill: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+}
+
+// Main container and layout
+.fullscreen-content {
+  --background: var(--player-background);
+}
+
+.fullscreen-audio-container {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+// Header
+ion-header {
+  ion-toolbar {
+    --background: transparent;
+  }
+  ion-button {
+    --color: var(--text-secondary);
+    &:hover {
+      --color: var(--text-primary);
+    }
+  }
+}
+
+// Artwork
+.audio-image-container {
+  flex-shrink: 0;
+  width: 100%;
+  padding-top: 100%; // Aspect ratio 1:1
+  position: relative;
+  margin-bottom: 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  .main-audio-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: opacity 0.3s ease;
+
+    &.loading {
+      opacity: 0.5;
+    }
+  }
+
+  .audio-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.3);
+
+    ion-spinner {
+      --color: var(--text-primary);
+    }
+  }
+}
+
+// Track Info
+.audio-info {
+  flex-shrink: 0;
+  text-align: center;
+  margin-bottom: 16px;
+
+  .audio-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+  }
+
+  .audio-subtitle, .audio-narrator {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+}
+
+// Progress Bar
+.progress-container {
+  flex-shrink: 0;
+  width: 100%;
+  margin-bottom: 8px;
+
+  ion-range {
+    --bar-background: var(--slider-track-background);
+    --bar-background-active: var(--slider-track-fill);
+    --bar-height: 6px;
+    --bar-border-radius: 3px;
+    --knob-size: 16px;
+    --knob-background: var(--text-primary);
+    padding: 0;
+  }
+
+  .time-display {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+}
+
+// Playback Controls
+.playback-controls {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  width: 100%;
+  margin-bottom: 24px;
+
+  .control-btn {
+    --color: var(--text-primary);
+    font-size: 1.8rem;
+
+    &.play-pause {
+      background: #6e57ff;
+      color: var(--text-primary);
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      font-size: 2.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s ease-in-out;
+
+      &:active {
+        transform: scale(0.95);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      }
+    }
+  }
+}
+
+// Ambient Sounds
+.ambient-sounds-section {
+  flex-grow: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+
+  .section-title {
+    flex-shrink: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    padding: 0 8px;
+    text-align: center;
+  }
+
+  .track-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 8px;
+  }
+
+  .track-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .track-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--control-background);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: var(--accent-primary);
+    flex-shrink: 0;
+  }
+
+  .track-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .track-name {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mute-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.6rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      background: var(--control-background);
+    }
+  }
+
+  ion-range.custom-range {
+    padding: 0;
+    --bar-background: var(--slider-track-background);
+    --bar-background-active: var(--slider-track-fill);
+    --bar-height: 6px;
+    --bar-border-radius: 3px;
+    --knob-size: 18px;
+    --knob-background: var(--text-primary);
+    --pin-background: var(--accent-primary);
+    --pin-color: var(--text-primary);
+  }
+}
+
+.safe-space {
+  visibility: hidden;
+  height: 60px;
+}
+
+// Keyframe animations
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+

@@ -1,0 +1,27 @@
+<ion-header [translucent]="false">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="backHref"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ privacyPolicy?.title || 'Privacy Policy' }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="privacy-content">
+  <div class="privacy-container">
+    <!-- Loading State -->
+    <div *ngIf="isLoading" class="loading-container">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading privacy policy...</p>
+    </div>
+    
+    <!-- Dynamic Privacy Policy Content -->
+    <div *ngIf="!showDefaultContent && !isLoading" class="dynamic-content" [innerHTML]="privacyPolicyData"></div>
+    
+    <!-- Fallback Content -->
+    <div *ngIf="showDefaultContent && !isLoading" class="fallback-content">
+      <h1>Privacy Policy</h1>
+      <p>Content not available. Please try again later.</p>
+    </div>
+  </div>
+</ion-content> 

@@ -1,0 +1,448 @@
+ion-content {
+  --background: var(--ion-background-color) !important;
+  --padding-top: 0 !important;
+  --padding-bottom: calc(44px + 56px + env(safe-area-inset-bottom, 20px));
+  --overflow: auto;
+}
+
+// Library Header Styles
+.library-header {
+  // --background: linear-gradient(135deg, #2a2741 0%, #1a1a2e 100%);
+  --border-color: transparent;
+  --box-shadow: none !important;
+  --background: var(--ion-background-color) !important;
+  --border-width: 0 !important;
+  --border-style: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  background: var(--ion-background-color) !important;
+  
+  ion-toolbar {
+    --background: transparent;
+    --border-color: transparent;
+    --min-height: 80px;
+    padding: 16px;
+  }
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.header-text {
+  flex: 1;
+  
+  .page-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 4px 0;
+    line-height: 1.2;
+  }
+  
+  .page-subtitle {
+    font-size: 0.9rem;
+    color: #a299f9;
+    margin: 0;
+    font-weight: 400;
+    opacity: 0.9;
+  }
+}
+
+.header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(127, 88, 255, 0.2);
+  border-radius: 12px;
+  margin-left: 16px;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    background: rgba(127, 88, 255, 0.3);
+    transform: scale(1.05);
+  }
+  
+  .library-icon {
+    font-size: 1.5rem;
+    color: #7f58ff;
+    transition: transform 0.3s ease;
+  }
+  
+  &:hover .library-icon {
+    transform: rotate(5deg);
+  }
+}
+
+
+
+.section {
+  margin-bottom: 40px; // Increased spacing
+  padding-top: 20px;
+  padding-left: 5px;
+  
+  .section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 15px;
+    padding-left: 16px;
+    position: relative;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      color: #a299f9;
+      transform: translateX(4px);
+    }
+    
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 20px;
+      background: linear-gradient(135deg, #7f58ff, #a299f9);
+      border-radius: 2px;
+      transition: all 0.3s ease;
+    }
+    
+    &:hover::before {
+      width: 6px;
+      height: 24px;
+    }
+  }
+}
+
+swiper-container {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+// Continue Listening Card
+.listening-card {
+  height: 160px; // Reduced height
+  border-radius: 15px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background-color: #2a2741; // Add base background for footer
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(127, 88, 255, 0.2);
+  }
+  
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 15px rgba(127, 88, 255, 0.15);
+  }
+  
+  // Card Glare Effect
+  .card-glare-effect {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.15) 50%,
+      transparent 100%
+    );
+    animation: cardGlare 2s infinite;
+    pointer-events: none;
+    z-index: 10;
+  }
+  
+  @keyframes cardGlare {
+    0% {
+      left: -100%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
+
+  .card-background {
+    position: absolute;
+    width: 100%;
+    height: 65%; // Only cover the top portion
+    object-fit: cover;
+    z-index: 1;
+    filter: brightness(0.7);
+  }
+
+  .play-icon-wrapper {
+    position: absolute;
+    top: 32.5%; // Center vertically in the image area
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    .play-icon {
+      font-size: 2.5rem; // Slightly smaller to match screenshot
+      color: rgba(255, 255, 255, 0.9);
+      // Add a subtle drop shadow to lift the icon off the image
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    }
+  }
+
+  .card-footer {
+    z-index: 2;
+    position: absolute;
+    bottom: 1px;
+    width: 100%;
+    background-color: #2a2741;
+    border-bottom-left-radius: 15px; // Match card radius
+    border-bottom-right-radius: 15px; // Match card radius
+
+    .progress-bar-background {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 20px;
+      .progress-bar-foreground {
+        height: 100%;
+        background: #a299f9;
+        border-radius: 20px;
+      }
+    }
+
+    .card-text {
+      padding: 8px 10px 10px;
+      .title {
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.9rem;
+        line-height: 1.2;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .narrator {
+        font-size: 0.75rem;
+        color: #a299f9;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .subtitle {
+        font-size: 0.75rem;
+        color: #a299f9;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+}
+
+// Your Favorites Card
+.favorite-card {
+  height: 120px;
+  border-radius: 15px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  background-color: #2a2741;
+
+  .card-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+    filter: brightness(0.8);
+  }
+
+  .card-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    color: #a299f9;
+    z-index: 2;
+  }
+
+  .title-wrapper {
+    z-index: 2;
+    width: 100%;
+    background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+    padding: 20px 10px 10px;
+    .title {
+      color: #fff;
+      font-weight: 600; // Bolder
+      font-size: 1rem; // Consistent size
+    }
+  }
+
+  &.liked-songs-card {
+    align-items: center;
+    justify-content: center;
+    .title-wrapper { 
+      background: none;
+      padding: 0;
+      text-align: center;
+      width: 100%;
+      position: absolute;
+      bottom: 10px;
+    }
+    .card-icon {
+      font-size: 2rem;
+      position: static;
+      transform: none;
+    }
+  }
+}
+
+// Recently Played List
+.recently-played-section {
+  padding-left: 4px;
+
+}
+
+.recently-played-list {
+  list-style: none;
+  padding: 0 16px;
+  margin: 0;
+
+  li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 12px;
+    transition: background-color 0.2s ease;
+    
+    &:hover {
+      background-color: rgba(127, 88, 255, 0.1);
+    }
+    
+    &:active {
+      background-color: rgba(127, 88, 255, 0.15);
+    }
+    
+    // List Glare Effect
+    .list-glare-effect {
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.15) 50%,
+        transparent 100%
+      );
+      animation: listGlare 2s infinite;
+      pointer-events: none;
+      z-index: 10;
+    }
+    
+    @keyframes listGlare {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 100%;
+      }
+    }
+
+    .item-image {
+      width: 50px;
+      height: 50px;
+      border-radius: 8px;
+      object-fit: cover;
+      margin-right: 15px;
+    }
+
+    .item-text {
+      flex-grow: 1;
+      .title {
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.95rem;
+        line-height: 1.3;
+        margin-bottom: 2px;
+      }
+      .narrator {
+        font-size: 0.8rem;
+        color: #a299f9;
+        font-weight: 500;
+        margin-bottom: 2px;
+      }
+      .play-info {
+        small {
+          font-size: 0.7rem;
+          color: #666;
+          opacity: 0.7;
+        }
+      }
+    }
+
+    .play-icon {
+      color: #7f58ff;
+      font-size: 1.4rem;
+      margin-left: 8px;
+    }
+  }
+}
+
+ion-footer {
+  // --padding-bottom: env(safe-area-inset-bottom, 70px);
+  z-index: 1000 !important; /* Prevent overlap */
+  position: fixed !important; /* Pin to bottom */
+  bottom: 0;
+  --padding-bottom: env(safe-area-inset-bottom) !important;
+}
+
+.no-data {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--ion-color-medium);
+  
+  .no-data-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    opacity: 0.6;
+  }
+  
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: var(--ion-text-color);
+  }
+  
+  p {
+    font-size: 0.9rem;
+    margin: 0;
+    opacity: 0.8;
+  }
+}
+
+.footer-spacer {
+  height: calc(44px + 56px + env(safe-area-inset-bottom, 20px));
+  visibility: hidden;
+}

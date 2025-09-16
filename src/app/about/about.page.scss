@@ -1,0 +1,248 @@
+ion-content {
+  --background: var(--ion-background-color) !important;
+  --color: #fff;
+  --padding-top: env(safe-area-inset-top, 20px) !important;
+  --padding-bottom: calc(120px + env(safe-area-inset-bottom, 20px));
+  --overflow: auto;
+}
+
+// Header styling - matching see-all page
+ion-header {
+  --background: #120f29;
+  --color: #ffffff;
+}
+
+ion-toolbar {
+  --background: #120f29;
+  --color: #ffffff;
+  --border-width: 0;
+  --padding-start: 4px;
+  --padding-end: 4px;
+}
+
+ion-title {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 1.2rem;
+  text-align: center;
+  margin: 0;
+  padding-left: 0;
+  padding-right: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: auto;
+  height: auto;
+}
+
+ion-back-button {
+  --color: #ffffff;
+  --icon-color: #ffffff;
+  --icon-font-size: 1.5rem;
+  margin-right: 0;
+  padding-right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+ion-buttons[slot="start"] {
+  margin-right: 0;
+  padding-right: 0;
+  min-width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.about-container {
+  padding: 20px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 40px;
+  padding: 20px 0;
+  
+  .app-icon {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #7f58ff, #a299f9);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    
+    ion-icon {
+      font-size: 2.5rem;
+      color: #fff;
+    }
+  }
+  
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 8px 0;
+  }
+  
+  .version {
+    font-size: 1rem;
+    color: #a299f9;
+    margin: 0;
+    font-weight: 500;
+  }
+}
+
+.about-section, .features-section, .contact-section, .legal-section {
+  margin-bottom: 40px;
+  
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 16px;
+    position: relative;
+    
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 20px;
+      background: linear-gradient(135deg, #7f58ff, #a299f9);
+      border-radius: 2px;
+      margin-left: -12px;
+    }
+  }
+  
+  p {
+    font-size: 1rem;
+    color: #b3a9c9;
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+}
+
+.feature-list {
+  .feature-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: rgba(127, 88, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(127, 88, 255, 0.1);
+    transition: all 0.3s ease;
+    
+    &:hover {
+      background: rgba(127, 88, 255, 0.1);
+      transform: translateX(4px);
+    }
+    
+    ion-icon {
+      font-size: 1.5rem;
+      color: #7f58ff;
+      margin-right: 16px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    
+    .feature-content {
+      flex: 1;
+      
+      h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #fff;
+        margin: 0 0 4px 0;
+      }
+      
+      p {
+        font-size: 0.9rem;
+        color: #b3a9c9;
+        margin: 0;
+        line-height: 1.4;
+      }
+    }
+  }
+}
+
+.contact-info {
+  .contact-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 12px;
+    background: rgba(127, 88, 255, 0.05);
+    border-radius: 8px;
+    
+    ion-icon {
+      font-size: 1.2rem;
+      color: #7f58ff;
+      margin-right: 12px;
+    }
+    
+    span {
+      font-size: 1rem;
+      color: #fff;
+      font-weight: 500;
+    }
+  }
+}
+
+.legal-links {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  
+  ion-button {
+    --color: #7f58ff;
+    --background: rgba(127, 88, 255, 0.05);
+    --border-radius: 8px;
+    --padding-start: 16px;
+    --padding-end: 16px;
+    --padding-top: 12px;
+    --padding-bottom: 12px;
+    font-weight: 500;
+    
+    ion-icon {
+      margin-right: 8px;
+    }
+    
+    &:hover {
+      --background: rgba(127, 88, 255, 0.1);
+    }
+  }
+}
+
+.footer {
+  text-align: center;
+  padding: 32px 16px;
+  margin-top: 32px;
+  border-top: 1px solid var(--ion-color-light);
+  
+  p {
+    color: var(--ion-color-medium);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+}
+
+.footer-spacer {
+  height: calc(44px + 56px + env(safe-area-inset-bottom, 20px));
+  visibility: hidden;
+}

@@ -1,0 +1,10 @@
+<ion-toolbar class="custom-tab-bar">
+  <ion-buttons>
+    <ion-button *ngFor="let tab of tabs" (click)="navigateTo(tab.path)" [class.active]="isActive(tab.path)">
+      <div class="button-inner">
+        <ion-icon [name]="isActive(tab.path) ? tab.icon : tab.icon + '-outline'"></ion-icon>
+        <ion-label>{{ tab.label }}</ion-label>
+      </div>
+    </ion-button>
+  </ion-buttons>
+</ion-toolbar>

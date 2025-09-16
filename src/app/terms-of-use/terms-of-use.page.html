@@ -1,0 +1,27 @@
+<ion-header [translucent]="false">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="backHref"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ termsOfUse?.title || 'Terms of Use' }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="terms-content">
+  <div class="terms-container">
+    <!-- Loading State -->
+    <div *ngIf="isLoading" class="loading-container">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading terms of use...</p>
+    </div>
+    
+    <!-- Dynamic Terms of Use Content -->
+    <div *ngIf="!showDefaultContent && !isLoading" class="dynamic-content" [innerHTML]="termsOfUseData"></div>
+    
+    <!-- Fallback Content -->
+    <div *ngIf="showDefaultContent && !isLoading" class="fallback-content">
+      <h1>Terms of Use</h1>
+      <p>Content not available. Please try again later.</p>
+    </div>
+  </div>
+</ion-content> 

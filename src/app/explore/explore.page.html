@@ -1,0 +1,119 @@
+<ion-header translucent="true">
+  <ion-toolbar>
+    <div class="search-container">
+      <div class="search-bar">
+        <ion-icon 
+          [name]="showResults ? 'arrow-back-outline' : 'search-outline'"
+          (click)="showResults && clearSearch()"
+          [class.clickable]="showResults"
+        ></ion-icon>
+        <input
+          type="text"
+          placeholder="Search"
+          [(ngModel)]="searchQuery"
+          (input)="onSearchChange()"
+        />
+      </div>
+    </div>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content #contentContainer>
+
+    <div class="initial-content" *ngIf="!showResults">
+    <!-- Loading Spinner -->
+    <div *ngIf="isLoading" class="loading-container">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading categories...</p>
+    </div>
+
+    <!-- Categories Grid -->
+    <div *ngIf="!isLoading && categoryCards.length > 0" class="category-grid">
+      <a 
+        *ngFor="let card of categoryCards" 
+        class="category-card"
+        (click)="onCategoryClick(card)"
+      >
+        <img 
+          *ngIf="card.imageUrl" 
+          [src]="card.imageUrl" 
+          class="category-image" 
+          [alt]="card.name"
+          loading="eager"
+        />
+        <div class="category-content">
+          <div class="category-title">{{ card.name }}</div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="!isLoading && categoryCards.length === 0" class="empty-state">
+      <div class="empty-icon">
+        <ion-icon name="search-outline"></ion-icon>
+      </div>
+      <h3>No categories found</h3>
+      <p>Check back later for new content</p>
+    </div>
+  </div>
+
+  <div class="search-results" *ngIf="showResults">
+    <!-- Dynamic Search Suggestions -->
+    <ul class="tags-list" *ngIf="searchSuggestions.length > 0">
+      <li *ngFor="let suggestion of searchSuggestions" (click)="onSuggestionClick(suggestion)">{{ suggestion }}</li>
+    </ul>
+
+    <h3 class="results-heading">Top Results</h3>
+
+    <!-- No Results State -->
+    <div *ngIf="topResults.length === 0" class="no-results">
+      <div class="no-results-icon">
+        <ion-icon name="search-outline"></ion-icon>
+      </div>
+      <h4>No results found</h4>
+      <p>Try searching for something else</p>
+    </div>
+
+    <!-- Results List -->
+    <ul class="results-list" *ngIf="topResults.length > 0">
+      <li 
+        *ngFor="let result of topResults" 
+        class="result-card"
+        [class.loading]="result.type === 'story' && globalAudioPlayer.isTrackLoading(result.id)"
+        (click)="onSearchResultClick(result)"
+      >
+        <!-- Glare effect for loading stories -->
+        <div class="result-glare-effect" *ngIf="result.type === 'story' && globalAudioPlayer.isTrackLoading(result.id)"></div>
+        
+        <div class="image-container">
+          <img 
+            [src]="result.image" 
+            class="result-image" 
+            loading="lazy"
+          />
+          <!-- Play icon for stories -->
+          <div class="play-icon-wrapper" *ngIf="result.type === 'story'">
+            <ion-icon 
+              *ngIf="!globalAudioPlayer.isTrackLoading(result.id)" 
+              name="play" 
+              class="play-icon">
+            </ion-icon>
+            <ion-spinner 
+              *ngIf="globalAudioPlayer.isTrackLoading(result.id)" 
+              name="crescent" 
+              class="play-icon">
+            </ion-spinner>
+          </div>
+        </div>
+        <div class="result-text">
+          <div class="title">{{ result.title }}</div>
+          <div class="subtitle">{{ result.subtitle }}</div>
+        </div>
+        <div class="duration" *ngIf="result.duration">{{ result.duration }}</div>
+      </li>
+    </ul>
+  </div>
+  
+  <div class="footer-spacer"></div>
+</ion-content>
+<!-- Footer is handled globally via app.component.html -->

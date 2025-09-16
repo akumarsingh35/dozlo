@@ -1,0 +1,90 @@
+<ion-header [translucent]="false">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="backHref"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ aboutContent?.title || 'About Dozlo' }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="about-content">
+  <div class="about-container">
+    <!-- Loading State -->
+    <div *ngIf="isLoading" class="loading-container">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading about information...</p>
+    </div>
+    
+    <!-- Dynamic About Content -->
+    <div *ngIf="!isLoading && aboutContent">
+      <div class="app-header">
+        <div class="app-icon">
+          <ion-icon name="moon-outline"></ion-icon>
+        </div>
+        <h1>{{ aboutContent.appName }}</h1>
+        <p class="version">Version {{ aboutContent.version }}</p>
+      </div>
+
+      <section class="about-section">
+        <h2>{{ aboutContent.title }}</h2>
+        <p>{{ aboutContent.description }}</p>
+        <p>{{ aboutContent.mission }}</p>
+      </section>
+
+      <section class="features-section">
+        <h2>Key Features</h2>
+        <div class="feature-list">
+          <div class="feature-item" *ngFor="let feature of aboutContent.features">
+            <ion-icon [name]="feature.icon"></ion-icon>
+            <div class="feature-content">
+              <h3>{{ feature.title }}</h3>
+              <p>{{ feature.description }}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="contact-section">
+        <h2>Contact Us</h2>
+        <p>We'd love to hear from you! Reach out to us for support, feedback, or just to say hello.</p>
+        
+        <div class="contact-info">
+          <div class="contact-item">
+            <ion-icon name="mail-outline"></ion-icon>
+            <span>support@dozlo.com</span>
+          </div>
+          <div class="contact-item">
+            <ion-icon name="globe-outline"></ion-icon>
+            <span>www.dozlo.com</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="legal-section">
+        <h2>Legal</h2>
+        <div class="legal-links">
+          <ion-button fill="clear" (click)="navigateToPrivacyPolicy()">
+            <ion-icon name="shield-checkmark-outline" slot="start"></ion-icon>
+            Privacy Policy
+          </ion-button>
+          <ion-button fill="clear" (click)="navigateToTerms()">
+            <ion-icon name="document-text-outline" slot="start"></ion-icon>
+            Terms of Use
+          </ion-button>
+        </div>
+      </section>
+
+      <div class="footer">
+        <p>{{ aboutContent.copyright }}</p>
+      </div>
+    </div>
+
+    <!-- Fallback Content -->
+    <div *ngIf="!isLoading && !aboutContent" class="fallback-content">
+      <h1>About Dozlo</h1>
+      <p>Content not available. Please try again later.</p>
+    </div>
+  </div>
+
+  <div class="footer-spacer"></div>
+</ion-content>

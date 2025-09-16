@@ -1,0 +1,456 @@
+ion-content {
+  --background: var(--ion-background-color) !important;
+  --padding-top: 0 !important;
+  --padding-bottom: 0 !important;
+  --overflow: auto !important; /* Changed from hidden to auto */
+  --height: 100%;
+  height: 100%;
+}
+
+ion-content::part(scroll) {
+  overflow-y: auto !important; /* Changed from hidden to auto */
+  overflow-x: hidden !important;
+  /* Prevent overscroll bounce on Android */
+  overscroll-behavior: none;
+  /* Ensure proper height calculation */
+  min-height: 100%;
+  height: auto;
+}
+
+/* Prevent WebView scrollbar on short content */
+ion-content::part(scroll)::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Prevent header hiding when content is short */
+.content-short ion-content::part(scroll) {
+  overflow: hidden !important;
+  /* Disable scroll behavior entirely when content is short */
+  pointer-events: none;
+  /* Prevent any scroll events */
+  touch-action: none;
+  /* Ensure header stays visible */
+  transform: none !important;
+}
+
+/* Re-enable scroll when content overflows */
+.content-overflow ion-content::part(scroll) {
+  overflow-y: auto !important;
+  pointer-events: auto;
+  touch-action: pan-y pinch-zoom;
+}
+
+ion-header {
+  --box-shadow: none !important;
+  --background: var(--ion-background-color) !important;
+  --border-width: 0 !important;
+  --border-style: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  background: var(--ion-background-color) !important;
+  /* Ensure header stays visible */
+  position: relative !important;
+  z-index: 1000;
+}
+
+ion-toolbar {
+  --box-shadow: none !important;
+  --background: var(--ion-background-color) !important;
+  --border-width: 0 !important;
+  --border-style: none !important;
+  --min-height: auto !important;
+  --padding-top: 0 !important;
+  --padding-bottom: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+  background: var(--ion-background-color) !important;
+}
+
+.search-container {
+  padding: 8px 16px;
+  background: transparent;
+}
+
+.initial-content {
+  padding: 16px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  /* Ensure proper bottom spacing for footer and audio player */
+  padding-bottom: calc(44px + 56px + env(safe-area-inset-bottom, 20px) + 20px);
+  /* Remove fixed height and use flex for proper content distribution */
+  // min-height: calc(100vh - 120px); /* Account for header and footer */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  /* Ensure content doesn't overflow unnecessarily */
+  overflow: visible;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+
+  ion-spinner {
+    margin-bottom: 16px;
+    --color: #a299f9;
+  }
+
+  p {
+    color: #a299f9;
+    font-size: 1rem;
+    margin: 0;
+  }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+
+  .empty-icon {
+    margin-bottom: 20px;
+    
+    ion-icon {
+      font-size: 4rem;
+      color: #a299f9;
+      opacity: 0.5;
+    }
+  }
+
+  h3 {
+    color: #fff;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+  }
+
+  p {
+    color: #a299f9;
+    font-size: 1rem;
+    margin: 0;
+    opacity: 0.8;
+  }
+}
+
+/* Category Grid - Optimized for viewport fit */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 9997;
+  flex: 1;
+  /* Remove overflow hidden to prevent layout issues */
+  overflow: visible;
+}
+
+/* Force hide scrollbars on all explore page elements */
+.search-container,
+.search-bar,
+.initial-content,
+.search-results,
+.tags-list,
+.results-list,
+.no-results,
+.empty-state,
+.loading-container {
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.category-card {
+  background-color: #2a2741;
+  border-radius: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  }
+
+  .category-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    filter: brightness(0.7);
+  }
+
+  .category-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+    text-align: center;
+  }
+
+  .category-title {
+    color: #fff;
+    font-weight: 600;
+    font-size: 1.1rem;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    margin: 0;
+    line-height: 1.2;
+    width: 100%;
+    word-wrap: break-word;
+    white-space: normal;
+    flex-shrink: 0;
+  }
+}
+
+.search-results {
+  padding: 0 16px;
+  /* Ensure proper bottom spacing for footer and audio player */
+  padding-bottom: calc(44px + 56px + env(safe-area-inset-bottom, 20px) + 20px);
+  /* Use min-height instead of fixed height for better content handling */
+  min-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  /* Remove overflow hidden to prevent scrollbar issues */
+  overflow: visible;
+}
+
+.tags-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 20px;
+
+  li {
+    color: #fff;
+    font-size: 1rem;
+    padding: 8px 0;
+    cursor: pointer;
+    
+    &:hover {
+      color: #a299f9;
+    }
+  }
+}
+
+.results-heading {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 15px;
+}
+
+.results-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.result-card {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  position: relative;
+
+  .image-container {
+    position: relative;
+    margin-right: 15px;
+  }
+
+  .result-image {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+  }
+
+  .result-text {
+    flex: 1;
+
+    .title {
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    .subtitle {
+      color: #a299f9;
+      font-size: 0.8rem;
+    }
+  }
+
+  .duration {
+    color: #a299f9;
+    font-size: 0.8rem;
+  }
+
+  // Loading state
+  &.loading {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  // Glare effect for loading
+  .result-glare-effect {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.15) 50%,
+      transparent 100%
+    );
+    animation: resultGlare 2s infinite;
+    pointer-events: none;
+    z-index: 10;
+    border-radius: 12px;
+  }
+
+  @keyframes resultGlare {
+    0% {
+      left: -100%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
+
+  // Play icon wrapper
+  .play-icon-wrapper {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    cursor: pointer;
+    pointer-events: auto;
+    
+    .play-icon {
+      font-size: 1.8rem;
+      color: rgba(255, 255, 255, 0.9);
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    }
+    
+    ion-spinner {
+      color: rgba(255, 255, 255, 0.9);
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    }
+  }
+}
+
+.no-results {
+  text-align: center;
+  padding: 32px 16px;
+  
+  .no-results-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    opacity: 0.6;
+  }
+  
+  h4 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: var(--ion-text-color);
+  }
+  
+  p {
+    font-size: 0.9rem;
+    margin: 0;
+    opacity: 0.8;
+  }
+}
+
+.footer-spacer {
+  height: calc(44px + 56px + env(safe-area-inset-bottom, 20px));
+  visibility: hidden;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  background-color: #2a2741;
+  border-radius: 24px;
+  padding: 10px 15px;
+
+  ion-icon {
+    color: #a299f9;
+    font-size: 1.2rem;
+    margin-right: 10px;
+
+    &.clickable {
+      cursor: pointer;
+    }
+  }
+
+  input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 1rem;
+
+    &::placeholder {
+      color: #a299f9;
+      opacity: 0.8;
+    }
+
+    &:focus {
+      outline: none;
+    }
+  }
+}
+
+/* Android WebView specific fixes */
+@media screen and (max-width: 768px) {
+  ion-content {
+    /* Prevent overscroll bounce on Android */
+    overscroll-behavior: none;
+  }
+  
+  .initial-content,
+  .search-results {
+    /* Ensure proper height calculation on Android */
+    min-height: calc(100vh - 120px);
+    height: auto;
+  }
+}
+
+/* Prevent scrollbar on short content */
+.initial-content:not(.has-overflow),
+.search-results:not(.has-overflow) {
+  overflow: hidden;
+}
+
+

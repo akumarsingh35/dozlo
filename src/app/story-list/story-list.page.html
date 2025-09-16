@@ -1,0 +1,29 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title class="ion-text-center">{{ section?.title }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button disabled="true" aria-hidden="true"></ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-list lines="none">
+    <ion-item *ngFor="let story of section?.stories" class="story-item">
+      <div class="thumbnail-container" slot="start">
+        <img [src]="story.image" class="thumbnail-img" />
+        <ion-icon name="play-circle" class="play-icon"></ion-icon>
+        <div *ngIf="story.duration" class="duration-badge">{{ story.duration }}</div>
+      </div>
+      <ion-label>
+        <h2>{{ story.title }}</h2>
+        <p>{{ story.subtitle }}</p>
+      </ion-label>
+    </ion-item>
+  </ion-list>
+</ion-content>
