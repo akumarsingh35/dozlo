@@ -1,9 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Dozlo</string>
-    <string name="title_activity_main">Dozlo</string>
-    <string name="package_name">io.ionic.starter</string>
-    <string name="custom_url_scheme">com.googleusercontent.apps.240583319961-i3l09aks7stba0je8rq4u9cq1bjite0t</string>
-    <string name="server_client_id">240583319961-i3l09aks7stba0je8rq4u9cq1bjite0t.apps.googleusercontent.com</string>
-    <string name="default_web_client_id">240583319961-db9sfjvovvkv1fij12c8b21lvv8fcn55.apps.googleusercontent.com</string>
-</resources>
