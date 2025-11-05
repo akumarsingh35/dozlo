@@ -428,6 +428,14 @@ export class ExplorePage implements OnInit, OnDestroy, AfterViewInit {
     this.showResults = false;
   }
 
+  // Smoothly reveal images once they have painted, leaving the container background as a placeholder until then
+  onImgLoad(event: Event): void {
+    const img = event && (event.target as HTMLImageElement | null);
+    if (img) {
+      img.style.opacity = '1';
+    }
+  }
+
   onCategoryClick(category: ExploreCategory) {
     // Try multiple filtering strategies
     let categoryStories = this.allStories.filter(story => {

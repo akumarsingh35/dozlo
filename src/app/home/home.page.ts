@@ -53,6 +53,8 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
 
   showLoginBanner = true;
   isCategoryLoading = false;
+  private categoryLoadingCheckInterval: any;
+  private categoryLoadingTimeout: any;
 
   constructor(
     private navCtrl: NavController,
@@ -74,6 +76,38 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
         return of([]);
       })
     );
+  }
+
+  /**
+   * Maintain loading state until sections have stories or timeout
+   */
+  private startCategoryLoadingWatch(): void {
+    this.clearCategoryLoadingWatch();
+    const checkFn = () => {
+      const hasStories = this.currentSections?.some(s => Array.isArray(s.stories) && s.stories.length > 0);
+      if (hasStories) {
+        this.isCategoryLoading = false;
+        this.clearCategoryLoadingWatch();
+      }
+    };
+    // Poll briefly to catch async population
+    this.categoryLoadingCheckInterval = setInterval(checkFn, 150);
+    // Safety timeout to prevent indefinite skeletons
+    this.categoryLoadingTimeout = setTimeout(() => {
+      this.isCategoryLoading = false;
+      this.clearCategoryLoadingWatch();
+    }, 2000);
+  }
+
+  private clearCategoryLoadingWatch(): void {
+    if (this.categoryLoadingCheckInterval) {
+      clearInterval(this.categoryLoadingCheckInterval);
+      this.categoryLoadingCheckInterval = null;
+    }
+    if (this.categoryLoadingTimeout) {
+      clearTimeout(this.categoryLoadingTimeout);
+      this.categoryLoadingTimeout = null;
+    }
   }
 
   ngAfterViewInit() {
@@ -183,6 +217,7 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     console.log('🎯 Selecting category:', category.name);
     this.selectedCategory = category;
     this.isCategoryLoading = true;
+    this.clearCategoryLoadingWatch();
     
     this.firebaseDataService.getSectionsForCategory(category.name).pipe(takeUntil(this.destroy$)).subscribe({
       next: (sections) => {
@@ -196,18 +231,11 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
         
         // Preload audio for visible stories
         this.preloadVisibleAudio();
+        // Keep skeleton visible until stories appear or timeout to avoid empty sections
+        this.startCategoryLoadingWatch();
         
-        // Allow category switching after a short delay
-        setTimeout(() => {
-          this.isCategoryLoading = false;
-        }, 300);
-        
-        console.log('✅ Category selection complete');
-        console.log('✅ Current sections count:', this.currentSections.length);
-        console.log('✅ Images loaded state:', this.imagesLoaded);
       },
       error: (error) => {
-        console.error('❌ Error loading sections for category:', error);
         this.isCategoryLoading = false;
         this.imagesLoaded = true; // Set to true even on error to show fallback content
       }
@@ -223,6 +251,20 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
 
   trackByStory(index: number, story: FirebaseStory): string {
     return story.id;
+  }
+
+  /**
+   * Utility: fixed-length array for skeleton placeholders
+   */
+  getSkeletonArray(count: number): number[] {
+    return Array.from({ length: count }, (_, i) => i);
+  }
+
+  /**
+   * trackBy for skeleton placeholder loops
+   */
+  trackByIndex(index: number): number {
+    return index;
   }
 
   /**
@@ -670,6 +712,8 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     this.currentSections.forEach(section => {
       if (section.stories && Array.isArray(section.stories)) {
         section.stories.forEach(story => {
+          // Reset image loaded state for fresh render so placeholder backgrounds show
+          story.imageLoaded = false;
           // Convert imagePath to imageUrl using R2 service
           if (story.imagePath && !story.imageUrl) {
             story.imageUrl = this.r2ImageService.getSecureImageUrl(story.imagePath);
@@ -721,6 +765,7 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
   ngOnDestroy() {
     this.scrollManager.stopMonitoring('home');
     window.removeEventListener('resize', this.onWindowResize.bind(this));
+    this.clearCategoryLoadingWatch();
     this.destroy$.next();
     this.destroy$.complete();
   }

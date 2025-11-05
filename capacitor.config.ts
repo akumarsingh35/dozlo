@@ -26,6 +26,9 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchShowDuration: 0,
     },
+    FirebaseAnalytics: {
+      collectionEnabled: true
+    },
     FirebaseAuthentication: {
       skipNativeAuth: false,
       providers: ['google.com'],
@@ -53,8 +56,13 @@ const config: CapacitorConfig = {
       keystorePath: undefined,
       keystoreAlias: undefined,
       keystorePassword: undefined,
-    }
+    },
+    // Note: google-services.json must be placed at android/app/google-services.json
+    // Do NOT set a non-standard 'googleServicesFile' property here — it is not part of CapacitorConfig
   }
 };
 
 export default config;
+
+// Verified: google-services.json should be at android/app/google-services.json and package_name must match appId 'io.ionic.starter'
+

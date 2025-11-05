@@ -42,6 +42,8 @@
             [alt]="story.title"
             class="thumbnail-image"
             loading="lazy"
+            [style.opacity]="story.imageLoaded ? '1' : '0'"
+            (load)="story.imageLoaded = true"
           />
           
           <!-- Play Icon Overlay -->

@@ -227,6 +227,14 @@ export class LibraryPage implements OnInit, OnDestroy {
     return (story as any).playCount || 0;
   }
 
+  // Smoothly reveal images once they have painted, leaving the element's background as a placeholder until then
+  onImgLoad(event: Event): void {
+    const img = event && (event.target as HTMLImageElement | null);
+    if (img) {
+      img.style.opacity = '1';
+    }
+  }
+
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();

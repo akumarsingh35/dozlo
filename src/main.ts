@@ -31,5 +31,8 @@ bootstrapApplication(AppComponent, {
     provideFirebaseApp(() => initializeApp(firebaseConfig)),
     provideAuth(() => getAuth()),
     provideFirestore(() => getFirestore()),
+ 
+    // NOTE: No AngularFire provideAnalytics here — analytics is handled natively via Capacitor on Android.
   ],
 });
+   

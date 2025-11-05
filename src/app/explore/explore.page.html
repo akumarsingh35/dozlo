@@ -40,6 +40,7 @@
           class="category-image" 
           [alt]="card.name"
           loading="eager"
+          (load)="onImgLoad($event)"
         />
         <div class="category-content">
           <div class="category-title">{{ card.name }}</div>
@@ -90,6 +91,7 @@
             [src]="result.image" 
             class="result-image" 
             loading="lazy"
+            (load)="onImgLoad($event)"
           />
           <!-- Play icon for stories -->
           <div class="play-icon-wrapper" *ngIf="result.type === 'story'">

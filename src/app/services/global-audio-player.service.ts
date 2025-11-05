@@ -7,6 +7,7 @@ import { LibraryDataService } from './library-data.service';
 import { Howl } from 'howler';
 import { MediaSession } from '@jofr/capacitor-media-session';
 import { Capacitor } from '@capacitor/core';
+import { AnalyticsService } from './analytics.service';
 
 export interface AudioState {
   isPlaying: boolean;
@@ -70,7 +71,8 @@ export class GlobalAudioPlayerService {
   constructor(
     private r2AudioService: R2AudioService,
     private ambientAudioService: AmbientAudioService,
-    private libraryDataService: LibraryDataService
+    private libraryDataService: LibraryDataService,
+    private analytics: AnalyticsService
   ) {
     this.setupMediaSession();
     this.setupNetworkMonitoring();
@@ -146,12 +148,29 @@ export class GlobalAudioPlayerService {
               this.updateState({ isPlaying: true, isLoading: false, loadingTrackId: '' });
               this.updateMediaSessionMetadata();
               this.updateMediaSessionPlaybackState(true);
+              // Log audio_play event
+              const track = this.audioState.getValue().currentTrack;
+              if (track) {
+                this.analytics.logAudioPlay(
+                  track.storyId || track.audioUrl || '',
+                  track.title || '',
+                  this.currentHowl?.duration() || 0
+                );
+              }
             },
             onplayerror: (id, error) => this.handleAudioError('play', error),
             onpause: () => {
               this.stopProgressTracking();
               this.updateState({ isPlaying: false });
               this.updateMediaSessionPlaybackState(false);
+              // Log audio_pause event
+              const track = this.audioState.getValue().currentTrack;
+              if (track) {
+                this.analytics.logAudioPause(
+                  track.storyId || track.audioUrl || '',
+                  this.currentHowl?.seek() as number || 0
+                );
+              }
             },
             onend: () => {
               this.stopProgressTracking();
@@ -173,6 +192,15 @@ export class GlobalAudioPlayerService {
               // Mark completed in library when playback naturally ends
               if (request.storyId) {
                 this.libraryDataService.markCompleted(request.storyId);
+              }
+              // Log audio_stop event (on end)
+              const track = this.audioState.getValue().currentTrack;
+              if (track) {
+                this.analytics.logAudioStop(
+                  track.storyId || track.audioUrl || '',
+                  track.title || '',
+                  this.currentHowl?.duration() || 0
+                );
               }
             },
           });
@@ -207,6 +235,14 @@ export class GlobalAudioPlayerService {
     if (this.currentHowl && !this.currentHowl.playing()) {
       this.currentHowl.play();
       this.ambientAudioService.onMainAudioResume();
+      // Log audio_resume event
+      const track = this.audioState.getValue().currentTrack;
+      if (track) {
+        this.analytics.logAudioResume(
+          track.storyId || track.audioUrl || '',
+          this.currentHowl?.seek() as number || 0
+        );
+      }
     }
   }
 
@@ -214,6 +250,14 @@ export class GlobalAudioPlayerService {
     if (this.currentHowl?.playing()) {
       this.currentHowl.pause();
       this.ambientAudioService.onMainAudioPause();
+      // Log audio_pause event (already handled in Howl onpause, but keep for manual pause calls)
+      const track = this.audioState.getValue().currentTrack;
+      if (track) {
+        this.analytics.logAudioPause(
+          track.storyId || track.audioUrl || '',
+          this.currentHowl?.seek() as number || 0
+        );
+      }
     }
   }
 
@@ -221,6 +265,15 @@ export class GlobalAudioPlayerService {
     this.stopCurrentAudio();
     this.updateState({ isPlaying: false, currentTrack: null, progress: 0, duration: 0 });
     this.clearMediaSessionMetadata();
+    // Log audio_stop event (manual stop)
+    const track = this.audioState.getValue().currentTrack;
+    if (track) {
+      this.analytics.logAudioStop(
+        track.storyId || track.audioUrl || '',
+        track.title || '',
+        this.currentHowl?.seek() as number || 0
+      );
+    }
   }
 
   async seekTo(time: number): Promise<void> {

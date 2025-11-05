@@ -31,25 +31,26 @@
 
     <!-- Stories List -->
     <div *ngIf="filteredStories && filteredStories.length > 0" class="story-items">
-              <div 
-          *ngFor="let story of filteredStories; trackBy: trackByStory" 
-          class="story-item"
-          [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')"
-        >
+      <div 
+        *ngFor="let story of filteredStories; trackBy: trackByStory" 
+        class="story-item"
+        [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')"
+      >
                    <!-- Story Thumbnail -->
            <div class="story-thumbnail">
              <img 
-               [src]="story?.imageUrl || story?.image || ''" 
-               [alt]="story.title"
-               class="thumbnail-image"
-               loading="lazy"
-             />
+            [src]="story?.imageUrl || story?.image || ''" 
+            [alt]="story.title"
+            class="thumbnail-image"
+            loading="lazy"
+            [style.opacity]="story.imageLoaded ? '1' : '0'"
+          />
              
              <!-- Play Icon Overlay -->
              <div class="play-icon-wrapper" (click)="onPlayStory(story)">
                <ion-icon 
                  *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" 
-                 name="play" 
+                 name="play"
                  class="play-icon">
                </ion-icon>
                <ion-spinner 

@@ -28,7 +28,7 @@
     <!-- Stories List -->
     <div *ngIf="stories && stories.length > 0" class="story-items">
       <div 
-        *ngFor="let story of stories; trackBy: trackByStory" 
+        *ngFor="let story of stories; let isFirst = first; trackBy: trackByStory" 
         class="story-item"
         [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')"
       >
@@ -38,7 +38,7 @@
             [src]="story?.imageUrl || story?.image || ''" 
             [alt]="story.title"
             class="thumbnail-image"
-            [loading]="$first ? 'eager' : 'lazy'"
+            [loading]="isFirst ? 'eager' : 'lazy'"
           />
           
           <!-- Play Icon Overlay -->

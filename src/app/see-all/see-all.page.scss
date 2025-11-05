@@ -160,6 +160,12 @@ ion-title {
   margin-right: 20px;
   flex-shrink: 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  /* Placeholder background until image loads */
+  background-color: #2a2741;
+  background-image: url('/assets/images/dozlo_placeholder.webp');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .thumbnail-image {
@@ -167,6 +173,8 @@ ion-title {
   height: 100%;
   object-fit: cover;
   border-radius: 16px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
 }
 
 // Play Icon Wrapper - Matching Home Page Style

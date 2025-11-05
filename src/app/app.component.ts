@@ -16,6 +16,7 @@ import { Subscription } from 'rxjs';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { MediaSession } from '@jofr/capacitor-media-session';
+import { FirebaseAnalytics } from '@capacitor-firebase/analytics';
 
 @Component({
   selector: 'app-root',
@@ -200,6 +201,26 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       
       // Initialize content padding
       this.updateContentPadding();
+
+      // Native Firebase Analytics initialization (only on native platforms)
+      try {
+        if (Capacitor.isNativePlatform()) {
+          // Ensure analytics collection enabled at runtime
+          await FirebaseAnalytics.setEnabled({ enabled: true });
+
+          // Log a lightweight test event to verify DebugView immediately
+          await FirebaseAnalytics.logEvent({
+            name: 'app_open',
+            params: { platform: Capacitor.getPlatform() }
+          });
+
+          console.log('📈 Firebase Analytics (native) initialized and app_open logged');
+        } else {
+          console.log('📈 Skipping native Firebase Analytics initialization on web');
+        }
+      } catch (err) {
+        console.warn('⚠️ Error initializing native Firebase Analytics:', err);
+      }
       
       // Status bar configured above; back handler initialized after view init
       

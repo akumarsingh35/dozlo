@@ -182,6 +182,15 @@ swiper-container {
     object-fit: cover;
     z-index: 1;
     filter: brightness(0.7);
+    /* Placeholder background until image paints */
+    background-image: url('/assets/images/dozlo_placeholder.webp');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    /* Smooth reveal */
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    will-change: opacity;
   }
 
   .play-icon-wrapper {
@@ -269,6 +278,15 @@ swiper-container {
     object-fit: cover;
     z-index: 1;
     filter: brightness(0.8);
+    /* Placeholder background until image paints */
+    background-image: url('/assets/images/dozlo_placeholder.webp');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    /* Smooth reveal */
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    will-change: opacity;
   }
 
   .card-icon {
@@ -375,6 +393,15 @@ swiper-container {
       border-radius: 8px;
       object-fit: cover;
       margin-right: 15px;
+      /* Placeholder background until image paints */
+      background-image: url('/assets/images/dozlo_placeholder.webp');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      /* Smooth reveal */
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      will-change: opacity;
     }
 
     .item-text {

@@ -32,7 +32,7 @@
         class="category-button"
         [class.loading]="isCategoryLoading"
       >
-        <ion-spinner *ngIf="isCategoryLoading && selectedCategory?.name === category.name" name="crescent" class="category-spinner"></ion-spinner>
+        <!-- <ion-spinner *ngIf="isCategoryLoading && selectedCategory?.name === category.name" name="crescent" class="category-spinner"></ion-spinner> -->
         {{ category.name }}
       </button>
     </div>
@@ -54,7 +54,7 @@
 
       <!-- Slider Cards Section Type -->
       <div
-        *ngIf="section.sectionType === 'sliderCards' && section.stories && section.stories.length > 0 && !isCategoryLoading"
+        *ngIf="section.sectionType === 'sliderCards' && section.stories && section.stories.length > 0"
         class="custom-slider-container"
         (pointerdown)="onSliderPointerDown($event, section.id)"
         (pointermove)="onSliderPointerMove($event, section.id)"
@@ -77,7 +77,15 @@
           >
             <div class="slider-card-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
             <div class="card-media" style="position: relative;">
-              <img [src]="story?.imageUrl || ''" class="card-img" loading="lazy" />
+              <!-- Real image -->
+              <img 
+                [src]="story?.imageUrl || ''" 
+                class="card-img" 
+                loading="lazy"
+                [style.opacity]="story.imageLoaded ? '1' : '0'"
+                (load)="onImageLoad(story)"
+                (error)="onImageError($event)"
+              />
               <div class="play-icon-wrapper" (click)="onPlay(story)">
                 <ion-icon 
                   *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" 
@@ -100,12 +108,33 @@
         </div>
       </div>
 
+      <!-- Slider Cards Skeleton (shown while category is loading) -->
+      <div *ngIf="section.sectionType === 'sliderCards' && isCategoryLoading && (!section.stories || section.stories.length === 0)" class="custom-slider-container">
+        <div class="custom-slider-track" [style.gap]="getResponsiveCardDimensions().gap + 'px'">
+          <div
+            *ngFor="let i of getSkeletonArray(4); trackBy: trackByIndex"
+            class="story-card skeleton"
+            [style.width]="getResponsiveCardDimensions().width + 'px'"
+            [style.min-width]="getResponsiveCardDimensions().width + 'px'"
+          >
+            <div class="card-media">
+              <div class="skeleton-box skeleton-image"></div>
+            </div>
+            <div class="card-text">
+              <div class="skeleton-box skeleton-line w-80"></div>
+              <div class="skeleton-box skeleton-line w-60"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Cards Section Type -->
       <div *ngIf="section.sectionType === 'cards' && section.stories && section.stories.length > 0" class="book-club-section">
         <div class="book-club-grid">
           <div *ngFor="let story of section.stories; trackBy: trackByStory" class="book-club-card" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')" (click)="onPlay(story)">
             <div class="book-card-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
             <div class="book-card-image">
+              <!-- Real image -->
               <img 
                 [src]="story?.imageUrl || ''" 
                 class="book-card-img" 
@@ -135,6 +164,21 @@
         </div>
       </div>
 
+      <!-- Cards Skeleton Section (shown while category is loading) -->
+      <div *ngIf="section.sectionType === 'cards' && isCategoryLoading && (!section.stories || section.stories.length === 0)" class="book-club-section">
+        <div class="book-club-grid">
+          <div *ngFor="let i of getSkeletonArray(9); trackBy: trackByIndex" class="book-club-card skeleton">
+            <div class="book-card-image">
+              <div class="skeleton-box skeleton-image"></div>
+            </div>
+            <div class="book-card-content">
+              <div class="skeleton-box skeleton-line w-90 center"></div>
+              <div class="skeleton-box skeleton-line w-70 center"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Stacks Section Type -->
       <div *ngIf="section.sectionType === 'stacks' && section.stories && section.stories.length > 0" class="stacks-container">
         <div class="stacks-slider" 
@@ -155,6 +199,7 @@
               <div *ngFor="let story of storyGroup; trackBy: trackByStory" class="story-stack-item" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')">
                 <div class="stack-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
                 <div class="story-item-image">
+                  <!-- Real image -->
                   <img 
                     [src]="story?.imageUrl || ''" 
                     class="story-img" 
@@ -191,8 +236,27 @@
         </div>
       </div>
 
-      <!-- No Stories Message -->
-      <div *ngIf="!section.stories || section.stories.length === 0" class="no-stories">
+      <!-- Stacks Skeleton Section (shown while category is loading) -->
+      <div *ngIf="section.sectionType === 'stacks' && isCategoryLoading && (!section.stories || section.stories.length === 0)" class="stacks-container">
+        <div class="stacks-slider">
+          <div class="stacks-track">
+            <div *ngFor="let g of getSkeletonArray(2); trackBy: trackByIndex" class="story-stack-list">
+              <div *ngFor="let i of getSkeletonArray(3); trackBy: trackByIndex" class="story-stack-item skeleton">
+                <div class="story-item-image">
+                  <div class="skeleton-box skeleton-image"></div>
+                </div>
+                <div class="story-item-content">
+                  <div class="skeleton-box skeleton-line w-80"></div>
+                  <div class="skeleton-box skeleton-line w-50"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Stories Message (only when not loading) -->
+      <div *ngIf="(!section.stories || section.stories.length === 0) && !isCategoryLoading" class="no-stories">
         <p>No stories found in this section.</p>
       </div>
     </div>

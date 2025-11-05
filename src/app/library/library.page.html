@@ -27,7 +27,7 @@
       <swiper-slide *ngFor="let story of continueListening">
         <div class="listening-card" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')" (click)="onPlay(story)">
           <div class="card-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
-          <img [src]="story?.imageUrl || ''" class="card-background" loading="lazy"/>
+          <img [src]="story?.imageUrl || ''" class="card-background" loading="lazy" (load)="onImgLoad($event)"/>
           <div class="play-icon-wrapper">
             <ion-icon *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" name="play" class="play-icon"></ion-icon>
             <ion-spinner *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')" name="crescent" class="play-icon"></ion-spinner>
@@ -53,7 +53,7 @@
       <swiper-slide *ngFor="let story of yourFavorites">
         <div class="listening-card" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')">
           <div class="card-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
-          <img [src]="story?.imageUrl || ''" class="card-background" loading="lazy"/>
+          <img [src]="story?.imageUrl || ''" class="card-background" loading="lazy" (load)="onImgLoad($event)"/>
           <div class="play-icon-wrapper" (click)="onPlay(story)">
             <ion-icon *ngIf="!globalAudioPlayer.isTrackLoading(story.id || '')" name="play" class="play-icon"></ion-icon>
             <ion-spinner *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')" name="crescent" class="play-icon"></ion-spinner>
@@ -78,7 +78,7 @@
     <ul class="recently-played-list">
       <li *ngFor="let story of recentlyPlayed" [class.loading]="globalAudioPlayer.isTrackLoading(story.id || '')" (click)="onPlay(story)">
         <div class="list-glare-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
-        <img [src]="story?.imageUrl || ''" class="item-image" loading="lazy"/>
+        <img [src]="story?.imageUrl || ''" class="item-image" loading="lazy" (load)="onImgLoad($event)"/>
         <div class="item-text">
           <div class="title">{{ story.title }}</div>
           <div class="narrator" *ngIf="story.narratorName">{{ story.narratorName }}</div>

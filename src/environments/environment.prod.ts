@@ -10,5 +10,5 @@ export const environment = {
   },
   r2WorkerUrl: 'https://dozlo-audio-signed-urls.akumarsingh35.workers.dev', // Audio worker URL
   r2ImageWorkerUrl: 'https://dozlo-image-worker.akumarsingh35.workers.dev', // Image worker URL
-  r2AppSecret: 'dozlo-r2-secret-2024-xyz789-abc123-def456-ghi789' // Replace with your actual secret key
+  r2AppSecret: 'dozlo-r2-secret-2024-xyz789-abc123-def456-ghi789' // actual secret key
 };
