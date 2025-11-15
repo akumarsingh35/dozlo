@@ -36,6 +36,8 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
 
   // UI interaction state
   isDragging = false;
+  private pendingSeekTime: number | null = null;
+  private pendingSeekTimer: any = null;
 
   constructor(
     private modalController: ModalController,
@@ -49,7 +51,19 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
         this.isPlaying = state.isPlaying;
         this.isLoading = state.isLoading;
         this.duration = state.duration;
-        if (!this.isDragging) {
+        if (this.pendingSeekTime !== null) {
+          const cur = state.currentTime || 0;
+          const ok = Math.abs(cur - this.pendingSeekTime) <= 1;
+          if (ok) {
+            this.progress = state.progress;
+            this.currentTime = cur;
+            this.pendingSeekTime = null;
+            if (this.pendingSeekTimer) { clearTimeout(this.pendingSeekTimer); this.pendingSeekTimer = null; }
+            this.isDragging = false;
+          } else {
+            // ignore progress update until seek lands near target
+          }
+        } else if (!this.isDragging) {
           this.progress = state.progress;
           this.currentTime = state.currentTime || 0;
         }
@@ -94,6 +108,8 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
   onProgressBarDragStart() {
     this.isDragging = true;
     this.globalAudioPlayerService.cancelActiveSeek();
+    if (this.pendingSeekTimer) { clearTimeout(this.pendingSeekTimer); this.pendingSeekTimer = null; }
+    this.pendingSeekTime = null;
   }
 
   onProgressBarDragging(event: any) {
@@ -106,10 +122,18 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
 
   onProgressBarDragEnd(event: any) {
     if (this.isDragging) {
-      this.isDragging = false;
       const progress = event.detail.value / 100;
       const seekTime = this.duration * progress;
+      this.pendingSeekTime = seekTime;
+      this.progress = progress;
+      this.currentTime = seekTime;
       this.globalAudioPlayerService.seekTo(seekTime);
+      if (this.pendingSeekTimer) { clearTimeout(this.pendingSeekTimer); }
+      this.pendingSeekTimer = setTimeout(() => {
+        this.pendingSeekTime = null;
+        this.isDragging = false;
+        this.pendingSeekTimer = null;
+      }, 2500);
     }
   }
 

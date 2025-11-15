@@ -14,7 +14,7 @@
     <div class="audio-image-container">
       <img [src]="photoUrl" alt="Story Artwork" class="main-audio-image" [class.loading]="isLoading" />
       <div class="audio-loading-overlay" *ngIf="isLoading">
-        <div class="audio-loading-indicator"></div>
+        <ion-spinner name="crescent" class="audio-loading-indicator"></ion-spinner>
       </div>
     </div>
 
@@ -50,15 +50,17 @@
       <ion-button fill="clear" class="control-btn seek-backward" (click)="seekBackward()" [disabled]="isLoading">
         <ion-icon slot="icon-only" name="play-back-outline"></ion-icon>
       </ion-button>
-      <ion-button fill="clear" class="control-btn play-pause" (click)="togglePlay()" [disabled]="isLoading">
-        <ion-icon *ngIf="!isLoading" slot="icon-only" [name]="isPlaying ? 'pause' : 'play'"></ion-icon>
-        <ion-spinner *ngIf="isLoading" name="crescent"></ion-spinner>
-      </ion-button>
-            <ion-button fill="clear" class="control-btn seek-forward" (click)="seekForward()" [disabled]="isLoading">
+      <div class="play-pause-wrapper">
+        <ion-button fill="clear" class="control-btn play-pause" (click)="togglePlay()" [disabled]="isLoading">
+          <ion-icon *ngIf="!isLoading" slot="icon-only" [name]="isPlaying ? 'pause' : 'play'"></ion-icon>
+        </ion-button>
+        <ion-spinner *ngIf="isLoading" name="crescent" class="btn-overlay-spinner"></ion-spinner>
+      </div>
+      <ion-button fill="clear" class="control-btn seek-forward" (click)="seekForward()" [disabled]="isLoading">
         <ion-icon slot="icon-only" name="play-forward"></ion-icon>
       </ion-button>
     </div>
-
+ 
     <!-- Ambient Sounds Section -->
     <div class="ambient-sounds-section">
       <div class="section-title">Ambient Sounds</div>

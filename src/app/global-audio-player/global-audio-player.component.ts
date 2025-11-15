@@ -102,6 +102,13 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
     this.setupNetworkMonitoring();
   }
 
+  onContainerClick() {
+    if (this.isLoading || !this.isPlaying) {
+      return;
+    }
+    this.openFullscreenPlayer();
+  }
+
   ngOnInit() {
     // Subscribe to global audio state changes
     this.globalAudioPlayerService.audioState$.subscribe(state => {

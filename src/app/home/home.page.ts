@@ -34,6 +34,9 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
   showAudioPlayer = false;
   currentAudio: any = null;
   imagesLoaded = false;
+  networkError = false;
+  isRetrying = false;
+  private networkErrorTimer: any = null;
 
   categories: FirebaseCategory[] = [];
   selectedCategory: FirebaseCategory | null = null;
@@ -644,14 +647,32 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
         if (loaded) {
           console.log('🏠 Global data is loaded, setting up categories...');
           this.setupCategories();
+          this.networkError = false;
+          if (this.networkErrorTimer) { clearTimeout(this.networkErrorTimer); this.networkErrorTimer = null; }
         } else {
           console.log('🏠 Global data not loaded yet...');
+          if ((this.categories?.length || 0) === 0 && !this.networkErrorTimer) {
+            this.networkErrorTimer = setTimeout(() => {
+              if ((this.categories?.length || 0) === 0) {
+                this.networkError = true;
+              }
+              this.networkErrorTimer = null;
+            }, 2500);
+          }
         }
       },
       error: (error) => {
         console.error('🏠 Error in data loaded subscription:', error);
         // Fallback: try to setup categories anyway
         this.setupCategories();
+        if (!this.networkErrorTimer) {
+          this.networkErrorTimer = setTimeout(() => {
+            if ((this.categories?.length || 0) === 0) {
+              this.networkError = true;
+            }
+            this.networkErrorTimer = null;
+          }, 2500);
+        }
       }
     });
     
@@ -660,8 +681,45 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
       if (this.categories.length === 0) {
         console.log('🏠 Fallback: trying to get categories directly...');
         this.setupCategories();
+        if (!this.categories.length && !this.networkErrorTimer) {
+          this.networkErrorTimer = setTimeout(() => {
+            if ((this.categories?.length || 0) === 0) {
+              this.networkError = true;
+            }
+            this.networkErrorTimer = null;
+          }, 1000);
+        }
       }
     }, 2000);
+  }
+
+  retryLoad() {
+    if (this.isRetrying) return;
+    this.isRetrying = true;
+    this.firebaseDataService.refreshGlobalData().subscribe({
+      next: (ok) => {
+        this.isRetrying = false;
+        this.networkError = !ok;
+        if (ok) {
+          this.setupCategories();
+        }
+      },
+      error: () => {
+        this.isRetrying = false;
+        this.networkError = true;
+      }
+    });
+  }
+
+  formatDuration(duration: number | undefined | null): string {
+    const d = Number(duration || 0);
+    const totalMinutes = Math.max(0, Math.round(d));
+    if (totalMinutes >= 60) {
+      const hours = totalMinutes / 60;
+      const rounded = Math.round(hours * 10) / 10;
+      return `${rounded}h`;
+    }
+    return `${totalMinutes}m`;
   }
 
   private setupCategories() {

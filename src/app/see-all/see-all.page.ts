@@ -57,6 +57,17 @@ export class SeeAllPage implements OnInit, OnDestroy {
     });
   }
 
+  formatDuration(duration: number | undefined | null): string {
+    const d = Number(duration || 0);
+    const totalMinutes = Math.max(0, Math.round(d));
+    if (totalMinutes >= 60) {
+      const hours = totalMinutes / 60;
+      const rounded = Math.round(hours * 10) / 10;
+      return `${rounded}h`;
+    }
+    return `${totalMinutes}m`;
+  }
+
   private loadStories() {
     console.log('🎯 Loading stories for see-all page');
     console.log('🎯 Category:', this.category);

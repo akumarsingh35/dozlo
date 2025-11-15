@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { R2AudioService } from './r2-audio.service';
 import { AmbientAudioService } from './ambient-audio.service';
@@ -67,6 +67,11 @@ export class GlobalAudioPlayerService {
 
   private seekLock = false;
   private activeSeekController: AbortController | null = null;
+  private seekToken = 0;
+
+  private currentPlaySub: Subscription | null = null;
+  private currentPrefetchSub: Subscription | null = null;
+  private playToken = 0;
 
   constructor(
     private r2AudioService: R2AudioService,
@@ -94,6 +99,16 @@ export class GlobalAudioPlayerService {
 
   private setupAndroidAudioSession(): void {}
 
+  private getHtmlAudioElement(): HTMLAudioElement | null {
+    try {
+      const howlAny: any = this.currentHowl as any;
+      const node: HTMLAudioElement | undefined = howlAny?._sounds?.[0]?._node;
+      return node || null;
+    } catch {
+      return null;
+    }
+  }
+
   playFromCard(request: PlayRequest): Promise<boolean> {
     return this.playAudioFromAnyPage(request);
   }
@@ -102,36 +117,36 @@ export class GlobalAudioPlayerService {
     return new Promise((resolve) => {
       const requestId = `play_${request.storyId}_${Date.now()}`;
       this.setLoading(true, request.storyId);
-
-      const now = Date.now();
-      const throttleDelay = this.isSlowNetwork ? this.slowNetworkThrottleDelay : this.requestThrottleDelay;
-      if (now - this.lastRequestTime < throttleDelay || this.isProcessingRequest) {
-        this.handleNetworkError(request.storyId, 'Request throttled or in progress.');
-        return resolve(false);
-      }
-      this.lastRequestTime = now;
       this.isProcessingRequest = true;
       this.currentRequestId = requestId;
 
+      // Cancel any inflight URL retrieval and active seeks
+      this.currentPlaySub?.unsubscribe();
+      this.currentPlaySub = null;
+      this.cancelActiveSeek();
+      this.seekToken++;
       this.stopCurrentAudio();
       this.ambientAudioService.onMainAudioSwitch();
       this.updateTrackImmediately(request);
 
-      this.r2AudioService.getAudioUrlWithAutoRefresh(request.r2Path).pipe(
+      const myPlayToken = ++this.playToken;
+      this.currentPlaySub = this.r2AudioService.getAudioUrlWithAutoRefresh(request.r2Path).pipe(
         finalize(() => {
           this.isProcessingRequest = false;
           this.currentRequestId = '';
         })
       ).subscribe({
         next: (audioUrl) => {
+          if (myPlayToken !== this.playToken) { resolve(false); return; }
           this.currentHowl = new Howl({
             src: [audioUrl],
             html5: true,
             preload: true,
             loop: false,
             volume: 1.0,
-            format: ['mp3', 'wav', 'ogg', 'm4a'],
+            format: ['mp3', 'wav', 'ogg', 'm4a', 'aac'],
             onload: () => {
+              if (myPlayToken !== this.playToken) return;
               this.consecutiveFailures = 0;
               this.isNetworkError = false;
               this.updateState({ duration: this.currentHowl?.duration() || 0 });
@@ -142,10 +157,15 @@ export class GlobalAudioPlayerService {
                 this.seekTo(request.resumePosition);
               }
             },
-            onloaderror: (id, error) => this.tryFallbackAudioLoading(request, audioUrl),
+            onloaderror: (id, error) => { if (myPlayToken !== this.playToken) return; this.tryFallbackAudioLoading(request, audioUrl); },
             onplay: () => {
+              if (myPlayToken !== this.playToken) return;
               this.startProgressTracking();
-              this.updateState({ isPlaying: true, isLoading: false, loadingTrackId: '' });
+              if (this.seekLock) {
+                this.updateState({ isPlaying: true });
+              } else {
+                this.updateState({ isPlaying: true, isLoading: false, loadingTrackId: '' });
+              }
               this.updateMediaSessionMetadata();
               this.updateMediaSessionPlaybackState(true);
               // Log audio_play event
@@ -158,8 +178,9 @@ export class GlobalAudioPlayerService {
                 );
               }
             },
-            onplayerror: (id, error) => this.handleAudioError('play', error),
+            onplayerror: (id, error) => { if (myPlayToken !== this.playToken) return; this.handleAudioError('play', error); },
             onpause: () => {
+              if (myPlayToken !== this.playToken) return;
               this.stopProgressTracking();
               this.updateState({ isPlaying: false });
               this.updateMediaSessionPlaybackState(false);
@@ -173,6 +194,7 @@ export class GlobalAudioPlayerService {
               }
             },
             onend: () => {
+              if (myPlayToken !== this.playToken) return;
               this.stopProgressTracking();
               this.updateState({ isPlaying: false, progress: 0, currentTrack: null });
               // Update media session state in a safe, staged way to avoid plugin race conditions
@@ -282,9 +304,12 @@ export class GlobalAudioPlayerService {
     }
 
     this.seekLock = true;
+    const startedTrackId = this.audioState.getValue().currentTrack?.storyId || '';
+    if (startedTrackId) { this.setLoading(true, startedTrackId); }
     this.cancelActiveSeek();
     this.activeSeekController = new AbortController();
     const signal = this.activeSeekController.signal;
+    const myToken = ++this.seekToken;
 
     try {
       await this.waitForHowlReady(signal);
@@ -296,23 +321,76 @@ export class GlobalAudioPlayerService {
       }
 
       const seekTime = Math.max(0, Math.min(time, duration));
+      // Prefetch a small chunk near the seek point to warm caches
+      const r2Path = this.audioState.getValue().currentTrack?.r2Path || '';
+      this.currentPrefetchSub?.unsubscribe();
+      if (r2Path) {
+        this.currentPrefetchSub = this.r2AudioService.prefetchChunkForSeek(r2Path, duration, seekTime).subscribe();
+      }
+      const node = this.getHtmlAudioElement();
+      if (node) {
+        try {
+          const fast: any = (node as any).fastSeek;
+          if (typeof fast === 'function') {
+            fast.call(node, seekTime);
+          } else {
+            node.currentTime = seekTime;
+          }
+        } catch {}
+      }
       this.currentHowl.seek(seekTime);
+
+      if (!this.currentHowl.playing()) {
+        try { this.currentHowl.play(); } catch {}
+      }
 
       await new Promise(resolve => setTimeout(resolve, 150));
       if (signal.aborted) return;
 
       const actualSeek = this.currentHowl.seek() as number;
-      this.updateState({
-        progress: duration > 0 ? actualSeek / duration : 0,
-        currentTime: actualSeek,
-      });
-      this.updateMediaSessionPositionState();
+      if (myToken === this.seekToken) {
+        this.updateState({
+          progress: duration > 0 ? actualSeek / duration : 0,
+          currentTime: actualSeek,
+        });
+        this.updateMediaSessionPositionState();
+      }
+
+      const startedHowl = this.currentHowl;
+      const startedTrack = this.audioState.getValue().currentTrack?.storyId || '';
+      const confirmInterval = setInterval(() => {
+        if (signal.aborted || this.currentHowl !== startedHowl || (this.audioState.getValue().currentTrack?.storyId || '') !== startedTrack) {
+          clearInterval(confirmInterval);
+          return;
+        }
+        if (myToken !== this.seekToken) {
+          clearInterval(confirmInterval);
+          return;
+        }
+        const cur = this.currentHowl?.seek() as number;
+        const playing = !!this.currentHowl?.playing();
+        const htmlNode = this.getHtmlAudioElement();
+        const ready = htmlNode ? (htmlNode.readyState >= 3) : false;
+        const moved = typeof cur === 'number' && (cur - seekTime) > 0.15;
+        if ((playing && moved) || (ready && moved)) {
+          if ((this.audioState.getValue().currentTrack?.storyId || '') === startedTrack) {
+            this.setLoading(false, startedTrack);
+          }
+          clearInterval(confirmInterval);
+        }
+      }, 200);
+      signal.addEventListener('abort', () => clearInterval(confirmInterval), { once: true });
 
     } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.error('Error during seek:', error);
+      // Ignore AbortError; if timeout occurred from waitForHowlReady, continue silently
+      if (error && error.name !== 'AbortError') {
+        const msg = String(error?.message || '').toLowerCase();
+        if (!msg.includes('timed out waiting') && !msg.includes('timeout')) {
+          console.error('Error during seek:', error);
+        }
       }
     } finally {
+      // Spinner cleared by confirmation interval when playback resumes
       this.seekLock = false;
       this.activeSeekController = null;
     }
@@ -327,6 +405,7 @@ export class GlobalAudioPlayerService {
   cancelActiveSeek(): void {
     this.activeSeekController?.abort();
     this.activeSeekController = null;
+    this.seekToken++;
   }
 
   updateProgressUiOnly(progress: number): void {
@@ -353,9 +432,10 @@ export class GlobalAudioPlayerService {
       }
 
       const timeoutId = setTimeout(() => {
+        // Resolve after grace timeout to allow fallback seek/play logic to proceed
         signal.removeEventListener('abort', onAbort);
-        reject(new Error('Timed out waiting for Howl to be ready.'));
-      }, 5000);
+        resolve();
+      }, 15000);
 
       this.currentHowl?.once('load', () => {
         signal.removeEventListener('abort', onAbort);
@@ -399,6 +479,7 @@ export class GlobalAudioPlayerService {
   }
 
   private stopCurrentAudio() {
+    this.cancelActiveSeek();
     if (this.currentHowl) {
       this.currentHowl.stop();
       this.currentHowl.unload();

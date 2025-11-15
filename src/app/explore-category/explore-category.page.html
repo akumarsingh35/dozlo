@@ -64,15 +64,16 @@
           <div class="shining-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
           
           <!-- Duration Badge -->
-          <div class="duration-badge" *ngIf="story.duration">
-            {{ story.duration }}
+          <div class="duration-badge" *ngIf="story.duration !== undefined && story.duration !== null">
+            {{ formatDuration(story.duration) }}
           </div>
         </div>
         
         <!-- Story Details -->
         <div class="story-details">
           <h3 class="story-title">{{ story.title }}</h3>
-          <p class="story-category">{{ story.category || story.subTitle || story.subtitle || 'Story' }}</p>
+          <p class="story-category" *ngIf="categoryType !== 'mixed'">{{ story.subTitle || story.subtitle || 'Story' }}</p>
+          <p class="story-category" *ngIf="categoryType === 'mixed'">{{ story.category || 'Story' }}</p>
         </div>
       </div>
     </div>

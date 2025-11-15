@@ -383,7 +383,7 @@ export class ExplorePage implements OnInit, OnDestroy, AfterViewInit {
           title: story.title,
           subtitle: story.subTitle || story.narratorName || 'Story',
           image: story.imageUrl || '',
-          duration: story.duration ? this.formatDuration(story.duration) : '0:00',
+          duration: story.duration ? this.formatDuration(story.duration) : '0m',
           type: 'story',
           story: story
         });
@@ -418,9 +418,13 @@ export class ExplorePage implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private formatDuration(duration: number): string {
-    const minutes = Math.floor(duration / 60);
-    const seconds = duration % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const totalMinutes = Math.max(0, Math.round(duration));
+    if (totalMinutes >= 60) {
+      const hours = totalMinutes / 60;
+      const rounded = Math.round(hours * 10) / 10;
+      return `${rounded}h`;
+    }
+    return `${totalMinutes}m`;
   }
 
   clearSearch() {
@@ -502,7 +506,7 @@ export class ExplorePage implements OnInit, OnDestroy, AfterViewInit {
     
     // Use navigateForward without animation for instant transitions
     this.navCtrl.navigateForward(['/explore-category'], { 
-      queryParams: { category: category.name },
+      queryParams: { category: category.name, categoryType: (category as any).categoryType || 'same' },
       animated: false
     });
   }

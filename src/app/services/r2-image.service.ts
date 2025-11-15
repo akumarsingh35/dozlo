@@ -32,4 +32,4 @@ export class R2ImageService {
     const timestamp = Date.now();
     return `${this.IMAGE_WORKER_URL}?path=${encodeURIComponent(r2Path)}&auth=${this.APP_SECRET}&t=${timestamp}`;
   }
-} 
+}

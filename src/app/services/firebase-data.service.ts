@@ -43,6 +43,7 @@ export interface ExploreCategory {
   imageUrl?: string;
   description: string;
   color: string;
+  categoryType?: 'same' | 'mixed';
 }
 
 export interface PrivacyPolicy {
@@ -334,9 +335,20 @@ export class FirebaseDataService {
   refreshGlobalData(): Observable<boolean> {
     this.globalDataCache = null;
     this.dataLoadedSubject.next(false);
-    return from(this.loadGlobalData()).pipe(
-      map(() => true),
-      catchError(() => of(false))
+    this.categoriesSubject.next([]);
+    this.storiesSubject.next([]);
+    return from(this.fetchHomepageData()).pipe(
+      map((data) => {
+        this.globalDataCache = data;
+        this.updateSubjects();
+        this.dataLoadedSubject.next(true);
+        return true;
+      }),
+      catchError((err) => {
+        console.error('🌍 refreshGlobalData failed:', err);
+        this.dataLoadedSubject.next(false);
+        return of(false);
+      })
     );
   }
 
@@ -958,7 +970,8 @@ export class FirebaseDataService {
               name: categoryItem.name || 'Unnamed Category',
               imagePath: categoryItem.imagePath || '',
               description: categoryItem.description || '',
-              color: categoryItem.color || '#6e57ff'
+              color: categoryItem.color || '#6e57ff',
+              categoryType: (categoryItem.categoryType === 'mixed' ? 'mixed' : 'same')
             };
             categories.push(category);
           }
@@ -971,7 +984,8 @@ export class FirebaseDataService {
               name: categoryItem.name || 'Unnamed Category',
               imagePath: categoryItem.imagePath || '',
               description: categoryItem.description || '',
-              color: categoryItem.color || '#6e57ff'
+              color: categoryItem.color || '#6e57ff',
+              categoryType: (categoryItem.categoryType === 'mixed' ? 'mixed' : 'same')
             };
             categories.push(category);
           }

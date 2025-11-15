@@ -1,5 +1,5 @@
 <div class="safe-area-aware">
-  <div class="global-audio-player" *ngIf="shouldShowPlayer" [class.loading]="isLoading" (click)="openFullscreenPlayer()">
+  <div class="global-audio-player" *ngIf="shouldShowPlayer" [class.loading]="isLoading" (click)="onContainerClick()">
     <div class="glare-effect" *ngIf="isLoading"></div>
     <img *ngIf="photoUrl" [src]="photoUrl" alt="audio" class="audio-image" />
     <div class="audio-center">

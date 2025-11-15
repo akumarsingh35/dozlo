@@ -64,8 +64,8 @@
              <div class="shining-effect" *ngIf="globalAudioPlayer.isTrackLoading(story.id || '')"></div>
              
              <!-- Duration Badge -->
-             <div class="duration-badge" *ngIf="story.duration">
-               {{ story.duration }}
+             <div class="duration-badge" *ngIf="story.duration !== undefined && story.duration !== null">
+               {{ formatDuration(story.duration) }}
              </div>
            </div>
            

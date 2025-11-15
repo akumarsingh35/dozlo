@@ -1384,3 +1384,39 @@ ion-footer {
 
 /* Placeholder image styling for slow-loading images */
 /* Placeholder <img> no longer used; background-image now handles placeholders */
+
+/* Network error banner */
+.network-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(180deg, rgba(255, 77, 79, 0.15), rgba(255, 77, 79, 0.08));
+  border: 1px solid rgba(255, 77, 79, 0.35);
+  color: #ffdede;
+  padding: 12px 14px;
+  margin: 12px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+}
+
+.network-error-banner .error-icon {
+  font-size: 20px;
+  color: #ff6b6b;
+}
+
+.network-error-banner .error-text {
+  flex: 1;
+}
+
+.network-error-banner .error-text h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.network-error-banner .error-text p {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  color: #e0e0e0;
+}

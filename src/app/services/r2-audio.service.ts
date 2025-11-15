@@ -45,6 +45,38 @@ export class R2AudioService {
     this.initializeSecurity();
   }
 
+  /**
+   * Prefetch a small byte range around an approximate offset for the target time
+   * to warm the worker/R2 cache and speed up large seeks.
+   */
+  prefetchChunkForSeek(r2Path: string, durationSec: number, targetSec: number, chunkSize: number = 256 * 1024): Observable<void> {
+    if (!r2Path || !Number.isFinite(durationSec) || durationSec <= 0 || !Number.isFinite(targetSec)) {
+      return of(void 0);
+    }
+
+    const url = this.getWorkerUrl(r2Path);
+    const secureHeaders = this.getSecureHeaders();
+
+    return this.http.head(url, { observe: 'response', headers: secureHeaders }).pipe(
+      timeout(5000),
+      switchMap(resp => {
+        const sizeHeader = resp.headers.get('Content-Length');
+        const totalSize = Math.max(0, Number(sizeHeader || 0));
+        if (!totalSize) return of(void 0);
+        const ratio = Math.min(1, Math.max(0, targetSec / durationSec));
+        const approxOffset = Math.floor(totalSize * ratio);
+        const start = Math.max(0, approxOffset - Math.floor(chunkSize / 2));
+        const end = Math.min(totalSize - 1, start + chunkSize - 1);
+        const headers = secureHeaders.set('Range', `bytes=${start}-${end}`);
+        return this.http.get(url, { headers, responseType: 'blob', observe: 'response' }).pipe(
+          timeout(5000),
+          map(() => void 0)
+        );
+      }),
+      catchError(() => of(void 0))
+    );
+  }
+
   // Initialize simple security features without extra dependencies
   private initializeSecurity(): void {
     try {
@@ -315,8 +347,7 @@ export class R2AudioService {
     const url = this.getWorkerUrl(r2Path);
     
     // Use secure headers with device fingerprinting
-    const headers = this.getSecureHeaders();
-    headers.set('Range', 'bytes=0-1023'); // Restored for true streaming
+    const headers = this.getSecureHeaders().set('Range', 'bytes=0-1023'); // Restored for true streaming
     
     console.log('🎵 Preloading metadata with URL:', url);
     

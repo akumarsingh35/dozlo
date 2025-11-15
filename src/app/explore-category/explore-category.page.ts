@@ -35,6 +35,7 @@ export class ExploreCategoryPage implements OnInit, OnDestroy {
 
   stories: any[] = [];
   category: string = '';
+  categoryType: 'same' | 'mixed' = 'same';
   isLoading = true;
   searchTerm = '';
   filteredStories: any[] = [];
@@ -48,11 +49,25 @@ export class ExploreCategoryPage implements OnInit, OnDestroy {
     // Get category from query params
     this.route.queryParamMap.subscribe(params => {
       const categoryParam = params.get('category');
+      const categoryTypeParam = params.get('categoryType');
       this.category = categoryParam || 'Category';
+      this.categoryType = categoryTypeParam === 'mixed' ? 'mixed' : 'same';
       console.log('🎯 Category from params:', this.category);
+      console.log('🎯 CategoryType from params:', this.categoryType);
       
       this.loadStories();
     });
+  }
+
+  formatDuration(duration: number | undefined | null): string {
+    const d = Number(duration || 0);
+    const totalMinutes = Math.max(0, Math.round(d));
+    if (totalMinutes >= 60) {
+      const hours = totalMinutes / 60;
+      const rounded = Math.round(hours * 10) / 10;
+      return `${rounded}h`;
+    }
+    return `${totalMinutes}m`;
   }
 
   private loadStories() {
