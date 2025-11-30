@@ -10,11 +10,27 @@ ion-content {
   --overflow: auto;
   --height: 100%;
   height: 100%;
+  position: relative; /* Create stacking context for overlay */
   
   /* Hide scrollbars */
   &::-webkit-scrollbar {
     display: none !important;
   }
+
+/* Full-page loading overlay (prevents layout shift) */
+.page-loading-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ion-background-color);
+  z-index: 9999; /* Above footer and content */
+  pointer-events: all; /* Block interactions underneath */
+}
   
   & * {
     scrollbar-width: none !important;

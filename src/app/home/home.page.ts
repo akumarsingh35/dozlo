@@ -19,6 +19,7 @@ import { R2AudioService, AudioTrack } from '../services/r2-audio.service';
 import { R2ImageService } from '../services/r2-image.service';
 import { FirebaseDataService, FirebaseCategory, FirebaseSection, FirebaseStory } from '../services/firebase-data.service';
 import { ScrollManagerService } from '../services/scroll-manager.service';
+import { environment } from 'src/environments/environment';
 
 
 @Component({
@@ -633,6 +634,10 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     }, 5000); // 5 second timeout
     
     console.log('🏠 Default state set');
+
+  //   console.log("AUDIO_FINAL =", environment.getAudioWorkerUrl());
+  // console.log("IMAGE_FINAL =", environment.getImageWorkerUrl());
+  // console.log("SECRET_FINAL =", environment.getR2AppSecret());
   }
 
   private loadGlobalData() {

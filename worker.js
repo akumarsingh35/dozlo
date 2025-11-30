@@ -6,8 +6,8 @@ export default {
         status: 204,
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-App-Secret, X-Device-Fingerprint, X-Request-Count, X-Request-Timestamp, X-Platform, X-App-Version, User-Agent',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-App-Secret, X-Device-Fingerprint, X-Request-Count, X-Request-Timestamp, X-Platform, X-App-Version, User-Agent, Range, If-Range, If-None-Match',
           'Access-Control-Max-Age': '86400',
         },
       });
@@ -128,9 +128,14 @@ export default {
       }
 
       const etag = object.etag;
+      const ifRange = request.headers.get('If-Range');
+      if (isRangeRequest && ifRange && ifRange !== etag) {
+        object = await env.R2_BUCKET.get(key);
+        isRangeRequest = false;
+      }
       
       // COST OPTIMIZATION: Check If-None-Match for 304 responses (saves bandwidth)
-      if (request.headers.get('If-None-Match') === etag) {
+      if (!rangeHeader && request.headers.get('If-None-Match') === etag) {
         return new Response(null, {
           status: 304,
           headers: {
@@ -141,7 +146,7 @@ export default {
         });
       }
 
-      const contentType = object.httpMetadata?.contentType || 'audio/mpeg';
+      const contentType = object.httpMetadata?.contentType || (key && key.toLowerCase().endsWith('.aac') ? 'audio/aac' : 'audio/mpeg');
       
       // COST OPTIMIZATION: Aggressive caching headers to reduce R2 requests
       const headers = {
@@ -150,8 +155,9 @@ export default {
         'Accept-Ranges': 'bytes',
         'Cache-Control': 'public, max-age=86400, immutable, stale-while-revalidate=604800', // 24 hours + 7 days stale
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-App-Secret, X-Device-Fingerprint, X-Request-Count, X-Request-Timestamp, X-Platform, X-App-Version, User-Agent',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-App-Secret, X-Device-Fingerprint, X-Request-Count, X-Request-Timestamp, X-Platform, X-App-Version, User-Agent, Range, If-Range, If-None-Match',
+        'Access-Control-Expose-Headers': 'Accept-Ranges, Content-Range, Content-Length, ETag',
         'Access-Control-Max-Age': '86400',
         'X-Content-Type-Options': 'nosniff',
         'Vary': 'Range', // Important for range request caching

@@ -1,8 +1,7 @@
 <ion-content>
-  <!-- Loading State -->
-  <div *ngIf="isLoading" class="loading-container">
+  <!-- Full-page loading overlay -->
+  <div *ngIf="isLoading" class="page-loading-overlay">
     <ion-spinner name="crescent"></ion-spinner>
-    <p>Loading profile...</p>
   </div>
 
   <!-- Profile content for signed-in users -->

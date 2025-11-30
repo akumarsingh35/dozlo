@@ -1,6 +1,5 @@
 ion-content {
   --background: var(--ion-background-color) !important;
-  --padding-top: 0 !important;
   --padding-bottom: calc(44px + 56px + env(safe-area-inset-bottom, 20px));
   --overflow: auto;
 }
@@ -16,6 +15,7 @@ ion-content {
   box-shadow: none !important;
   border: none !important;
   background: var(--ion-background-color) !important;
+  padding-top: calc(env(safe-area-inset-top, 0px));
   
   ion-toolbar {
     --background: transparent;
