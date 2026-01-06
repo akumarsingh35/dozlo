@@ -38,14 +38,6 @@ const config: CapacitorConfig = {
       disableAutoSignIn: false,
       disableAutoSignInWithCredential: true
     },
-    BackgroundMode: {
-      title: 'Dozlo Audio',
-      text: 'Playing audio in background',
-      icon: 'ic_launcher',
-      color: '#120f29',
-      hidden: false,
-      silent: false
-    },
     LocalNotifications: {
       smallIcon: 'ic_launcher',
       iconColor: '#120f29'

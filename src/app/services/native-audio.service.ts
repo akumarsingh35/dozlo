@@ -1,6 +1,5 @@
 import { Injectable, NgZone } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
-import { BackgroundMode } from '@anuradev/capacitor-background-mode';
 import { MediaSession } from '@jofr/capacitor-media-session';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { BehaviorSubject, Observable } from 'rxjs';
@@ -53,15 +52,6 @@ export class NativeAudioService {
     try {
       // Enable background mode for Android
       if (Capacitor.isNativePlatform()) {
-        await BackgroundMode.enable({
-          title: 'Dozlo Audio',
-          text: 'Playing audio in background',
-          icon: 'ic_launcher',
-          color: '#120f29',
-          hidden: false,
-          silent: false
-        });
-
         // Set up media session for Android
         if (MediaSession) {
           this.setupMediaSession();
@@ -240,18 +230,7 @@ export class NativeAudioService {
       }
 
       await this.audioElement.play();
-      
-      // Enable background mode
-      if (Capacitor.isNativePlatform()) {
-        await BackgroundMode.enable({
-          title: 'Dozlo Audio',
-          text: 'Playing audio in background',
-          icon: 'ic_launcher',
-          color: '#120f29',
-          hidden: false,
-          silent: false
-        });
-      }
+
     } catch (error) {
       console.error('Error playing audio:', error);
       this.updateState({

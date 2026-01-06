@@ -23,7 +23,6 @@
     "@angular/platform-browser": "^20.0.0",
     "@angular/platform-browser-dynamic": "^20.0.0",
     "@angular/router": "^20.0.0",
-    "@anuradev/capacitor-background-mode": "^7.2.1",
     "@capacitor-firebase/analytics": "^7.3.1",
     "@capacitor-firebase/authentication": "^7.3.0",
     "@capacitor/android": "^7.4.2",

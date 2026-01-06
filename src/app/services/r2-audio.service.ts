@@ -849,93 +849,32 @@ export class R2AudioService {
    * This method is specifically designed for background playback scenarios
    */
   refreshAudioUrlForBackground(r2Path: string): Observable<string> {
-    console.log('🔄 Refreshing audio URL for background playback:', r2Path);
-    
+    console.log('🔄 Refreshing audio URL for background playback (non-blocking):', r2Path);
+
     return new Observable(observer => {
-      let retryCount = 0;
-      const maxRetries = 3;
-      const baseTimeout = 10000; // 10 second base timeout
-      
-      const attemptRefresh = () => {
-        // Network connectivity check disabled
-        console.log('🌐 Network check disabled');
-        
+      try {
+        const freshUrl = this.getFreshSignedUrl(r2Path);
+
+        // Fire-and-forget lightweight validation to warm up path; never blocks emission
         try {
-          // Generate fresh signed URL
-          const freshUrl = this.getFreshSignedUrl(r2Path);
-          
-          // Test the URL to ensure it's working with timeout
-          this.testStreamingPerformance(r2Path).pipe(
-            timeout(baseTimeout * (retryCount + 1)), // Exponential timeout
-            retry({
-              count: 2,
-              delay: (error, retryCount) => {
-                // Network state check disabled
-                console.log('🌐 Network check disabled during retry');
-                
-                const delay = Math.pow(2, retryCount) * 2000; // Exponential backoff
-                console.log(`🔄 URL refresh retry ${retryCount} in ${delay}ms...`);
-                return timer(delay);
-              },
-              resetOnSuccess: true
-            }),
-            catchError(error => {
-              console.warn(`⚠️ Background URL refresh test failed (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
-              
-              // Network error check disabled
-              console.log('🌐 Network error check disabled');
-              
-              // If we have retries left, try again
-              if (retryCount < maxRetries) {
-                retryCount++;
-                console.log(`🔄 Retrying URL refresh (attempt ${retryCount + 1}/${maxRetries + 1})...`);
-                setTimeout(attemptRefresh, 2000 * retryCount); // Exponential backoff
-                return of(null);
-              } else {
-                // No more retries, but continue anyway as the URL might still work
-                console.warn('⚠️ Max retries reached, continuing with generated URL');
-                return of(null);
-              }
-            })
-          ).subscribe({
-            next: (result) => {
-              console.log('✅ Background URL refresh successful:', freshUrl);
-              observer.next(freshUrl);
-              observer.complete();
-            },
-            error: (error) => {
-              console.error('❌ Background URL refresh failed after all retries:', error);
-              
-              // Network state check disabled for final error
-              console.log('🌐 Network state check disabled');
-              
-              // Even if testing failed, try to return the generated URL
-              // It might work even if the test failed
-              console.log('🔄 Returning generated URL despite test failure...');
-              observer.next(freshUrl);
-              observer.complete();
-            }
-          });
-        } catch (error) {
-          console.error('❌ Error generating fresh URL for background:', error);
-          
-          // Network state check disabled for generation error
-          console.log('🌐 Network state check disabled');
-          
-          // If URL generation fails, try to use cached URL as fallback
-          const cachedUrl = this.getCachedAudioUrl(r2Path);
-          if (cachedUrl) {
-            console.log('🔄 Using cached URL as fallback...');
-            observer.next(cachedUrl);
-            observer.complete();
-          } else {
-            observer.error(error);
-          }
+          this.testStreamingPerformance(r2Path)
+            .pipe(timeout(5000))
+            .subscribe({ next: () => {}, error: () => {} });
+        } catch {}
+
+        observer.next(freshUrl);
+        observer.complete();
+      } catch (error) {
+        console.error('❌ Error generating fresh URL for background:', error);
+        const cachedUrl = this.getCachedAudioUrl(r2Path);
+        if (cachedUrl) {
+          console.log('🔄 Using cached URL as fallback...');
+          observer.next(cachedUrl);
+          observer.complete();
+        } else {
+          observer.error(error);
         }
-      };
-      
-      // Start the refresh attempt
-      attemptRefresh();
+      }
     });
   }
 

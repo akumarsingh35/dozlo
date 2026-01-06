@@ -2,7 +2,6 @@ import { CommonModule } from '@angular/common';
 import { Component, Input, OnInit, OnDestroy, SimpleChanges, NgZone } from '@angular/core';
 import { IonicModule, ModalController } from '@ionic/angular';
 import { Howl } from 'howler';
-import { BackgroundMode } from '@anuradev/capacitor-background-mode';
 import { Capacitor } from '@capacitor/core';
 import { AmbientSettingsComponent } from '../components/ambient-settings/ambient-settings.component';
 import { FullscreenAudioPlayerComponent } from '../components/fullscreen-audio-player/fullscreen-audio-player.component';

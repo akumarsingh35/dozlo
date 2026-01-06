@@ -64,6 +64,9 @@ export class GlobalAudioPlayerService {
 
   private currentHowl: Howl | null = null;
   private progressInterval: any = null;
+  private stallWatchInterval: any = null;
+  private lastProgressAt = 0;
+  private stallThresholdMs = 15000;
 
   private seekLock = false;
   private activeSeekController: AbortController | null = null;
@@ -227,6 +230,8 @@ export class GlobalAudioPlayerService {
             },
           });
 
+          this.updateMediaSessionMetadata();
+          this.updateMediaSessionPlaybackState(true);
           this.currentHowl.play();
           this.ambientAudioService.onMainAudioPlay();
           resolve(true);
@@ -502,7 +507,11 @@ export class GlobalAudioPlayerService {
         const seek = this.currentHowl.seek() as number;
         const duration = this.currentHowl.duration();
         const progress = duration > 0 ? seek / duration : 0;
+        const prevTime = this.audioState.getValue().currentTime || 0;
         this.updateState({ progress: progress, currentTime: seek });
+        if (typeof seek === 'number' && seek > prevTime + 0.05) {
+          this.lastProgressAt = Date.now();
+        }
         this.updateMediaSessionPositionState();
         // Persist progress periodically to local storage for continue listening
         const track = this.audioState.getValue().currentTrack;
@@ -511,6 +520,7 @@ export class GlobalAudioPlayerService {
         }
       }
     }, 250);
+    this.startStallWatch();
   }
 
   private stopProgressTracking() {
@@ -518,6 +528,49 @@ export class GlobalAudioPlayerService {
       clearInterval(this.progressInterval);
       this.progressInterval = null;
     }
+    this.stopStallWatch();
+  }
+
+  private startStallWatch() {
+    this.stopStallWatch();
+    this.lastProgressAt = Date.now();
+    this.stallWatchInterval = setInterval(() => {
+      const h = this.currentHowl;
+      if (!h) return;
+      if (!h.playing()) {
+        this.lastProgressAt = Date.now();
+        return;
+      }
+      const now = Date.now();
+      if (now - this.lastProgressAt > this.stallThresholdMs) {
+        this.recoverFromStall();
+      }
+    }, 2000);
+  }
+
+  private stopStallWatch() {
+    if (this.stallWatchInterval) {
+      clearInterval(this.stallWatchInterval);
+      this.stallWatchInterval = null;
+    }
+  }
+
+  private recoverFromStall() {
+    const h = this.currentHowl;
+    if (!h) return;
+    const pos = (h.seek() as number) || 0;
+    const dur = h.duration() || 0;
+    const r2Path = this.audioState.getValue().currentTrack?.r2Path || '';
+    try {
+      if (r2Path && dur > 0) {
+        this.currentPrefetchSub?.unsubscribe();
+        this.currentPrefetchSub = this.r2AudioService.prefetchChunkForSeek(r2Path, dur, pos).subscribe();
+      }
+    } catch {}
+    try { h.pause(); } catch {}
+    setTimeout(() => {
+      try { h.play(); this.lastProgressAt = Date.now(); } catch {}
+    }, 200);
   }
 
   private updateMediaSessionPlaybackState(isPlaying: boolean) {
