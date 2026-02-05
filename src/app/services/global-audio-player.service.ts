@@ -144,7 +144,7 @@ export class GlobalAudioPlayerService {
           this.currentHowl = new Howl({
             src: [audioUrl],
             html5: true,
-            preload: true,
+            preload: false,
             loop: false,
             volume: 1.0,
             format: ['mp3', 'wav', 'ogg', 'm4a', 'aac'],
@@ -156,6 +156,10 @@ export class GlobalAudioPlayerService {
               this.updateMediaSessionMetadata();
               // Persist basic metadata for continue listening
               this.persistLibraryEntry(request);
+              // Begin rolling signed-URL refresh while playing
+              if (request.r2Path) {
+                this.r2AudioService.startRollingRefresh(request.r2Path);
+              }
               if (request.resumePosition && request.resumePosition > 0) {
                 this.seekTo(request.resumePosition);
               }
@@ -171,6 +175,11 @@ export class GlobalAudioPlayerService {
               }
               this.updateMediaSessionMetadata();
               this.updateMediaSessionPlaybackState(true);
+              // Ensure rolling refresh is active on play/resume
+              const rp = this.audioState.getValue().currentTrack?.r2Path;
+              if (rp) {
+                this.r2AudioService.startRollingRefresh(rp);
+              }
               // Log audio_play event
               const track = this.audioState.getValue().currentTrack;
               if (track) {
@@ -187,6 +196,9 @@ export class GlobalAudioPlayerService {
               this.stopProgressTracking();
               this.updateState({ isPlaying: false });
               this.updateMediaSessionPlaybackState(false);
+              // Pause rolling refresh to save network
+              const rp = this.audioState.getValue().currentTrack?.r2Path;
+              if (rp) { this.r2AudioService.stopRollingRefresh(rp); }
               // Log audio_pause event
               const track = this.audioState.getValue().currentTrack;
               if (track) {
@@ -214,6 +226,8 @@ export class GlobalAudioPlayerService {
                 } catch (e) {}
                 this.clearMediaSessionMetadata();
               }, 200);
+              // Stop rolling refresh at end
+              if (request.r2Path) { this.r2AudioService.stopRollingRefresh(request.r2Path); }
               // Mark completed in library when playback naturally ends
               if (request.storyId) {
                 this.libraryDataService.markCompleted(request.storyId);
@@ -277,6 +291,8 @@ export class GlobalAudioPlayerService {
     if (this.currentHowl?.playing()) {
       this.currentHowl.pause();
       this.ambientAudioService.onMainAudioPause();
+      const rp = this.audioState.getValue().currentTrack?.r2Path;
+      if (rp) { this.r2AudioService.stopRollingRefresh(rp); }
       // Log audio_pause event (already handled in Howl onpause, but keep for manual pause calls)
       const track = this.audioState.getValue().currentTrack;
       if (track) {
@@ -292,6 +308,7 @@ export class GlobalAudioPlayerService {
     this.stopCurrentAudio();
     this.updateState({ isPlaying: false, currentTrack: null, progress: 0, duration: 0 });
     this.clearMediaSessionMetadata();
+    this.r2AudioService.stopRollingRefresh();
     // Log audio_stop event (manual stop)
     const track = this.audioState.getValue().currentTrack;
     if (track) {
@@ -330,6 +347,8 @@ export class GlobalAudioPlayerService {
       const r2Path = this.audioState.getValue().currentTrack?.r2Path || '';
       this.currentPrefetchSub?.unsubscribe();
       if (r2Path) {
+        // Trigger URL refresh to avoid TTL edge during seeks
+        this.r2AudioService.triggerImmediateRefresh(r2Path);
         this.currentPrefetchSub = this.r2AudioService.prefetchChunkForSeek(r2Path, duration, seekTime).subscribe();
       }
       const node = this.getHtmlAudioElement();
@@ -470,7 +489,7 @@ export class GlobalAudioPlayerService {
       this.currentHowl = new Howl({
         src: [originalAudioUrl],
         html5: false, // Try with html5 disabled
-        preload: true,
+        preload: false,
         onload: () => {
           this.updateState({ duration: this.currentHowl?.duration() || 0 });
           this.updateMediaSessionMetadata();

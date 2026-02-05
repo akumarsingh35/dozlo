@@ -33,6 +33,9 @@ export class R2AudioService {
   private deviceFingerprint: string | null = null;
   private requestCount = 0;
   private readonly APP_VERSION = '1.0.0'; // You can get this from your app config
+  private readonly URL_TTL_MS = 180000; // 3 minutes default TTL for signed URLs
+  private readonly REFRESH_RATIO = 0.75; // refresh at ~75% of TTL
+  private refreshTimers = new Map<string, any>();
 
   constructor(
     private http: HttpClient
@@ -55,9 +58,8 @@ export class R2AudioService {
     }
 
     const url = this.getWorkerUrl(r2Path);
-    const secureHeaders = this.getSecureHeaders();
 
-    return this.http.head(url, { observe: 'response', headers: secureHeaders }).pipe(
+    return this.http.head(url, { observe: 'response' }).pipe(
       timeout(5000),
       switchMap(resp => {
         const sizeHeader = resp.headers.get('Content-Length');
@@ -67,7 +69,7 @@ export class R2AudioService {
         const approxOffset = Math.floor(totalSize * ratio);
         const start = Math.max(0, approxOffset - Math.floor(chunkSize / 2));
         const end = Math.min(totalSize - 1, start + chunkSize - 1);
-        const headers = secureHeaders.set('Range', `bytes=${start}-${end}`);
+        const headers = new HttpHeaders({ 'Range': `bytes=${start}-${end}` });
         return this.http.get(url, { headers, responseType: 'blob', observe: 'response' }).pipe(
           timeout(5000),
           map(() => void 0)
@@ -154,10 +156,11 @@ export class R2AudioService {
     
     // Generate timestamp and secure signature
     const timestamp = Date.now().toString();
-    const signature = this.generateSecureSignatureSync(r2Path, timestamp);
+    const fp = this.deviceFingerprint || 'unknown-device';
+    const signature = this.generateSecureSignatureSync(fp ? `${r2Path}:${fp}` : r2Path, timestamp);
     
-    // Construct signed URL
-    let finalUrl = `${baseUrl}?path=${encodeURIComponent(r2Path)}&ts=${timestamp}&sig=${signature}`;
+    // Construct signed URL (bind signature to fp via query)
+    let finalUrl = `${baseUrl}?path=${encodeURIComponent(r2Path)}&ts=${timestamp}&sig=${signature}&fp=${encodeURIComponent(fp)}`;
     
     // Force remove any double slashes before the query parameter
     finalUrl = finalUrl.replace(/\/\?/, '?');
@@ -345,18 +348,12 @@ export class R2AudioService {
    */
   preloadAudioMetadata(r2Path: string): Observable<any> {
     const url = this.getWorkerUrl(r2Path);
-    
-    // Use secure headers with device fingerprinting
-    const headers = this.getSecureHeaders().set('Range', 'bytes=0-1023'); // Restored for true streaming
+    const headers = new HttpHeaders({ 'Range': 'bytes=0-1023' });
     
     console.log('🎵 Preloading metadata with URL:', url);
     
     // Use GET instead of HEAD for better compatibility with range requests
-    return this.http.get(url, { 
-      headers,
-      responseType: 'blob',
-      observe: 'response'
-    }).pipe(
+    return this.http.get(url, { headers, responseType: 'blob', observe: 'response' }).pipe(
       takeUntil(this.cancelRequest$),
       timeout(10000), // 10 second timeout for metadata
       map(response => {
@@ -416,21 +413,9 @@ export class R2AudioService {
    * Get audio blob with authentication
    */
   getAudioBlob(r2Path: string): Observable<Blob> {
-    // Use secure headers with device fingerprinting
     const url = this.getWorkerUrl(r2Path);
-    const headers = this.getSecureHeaders();
-    
-    console.log('🔐 Sending request with secure headers:', {
-      'URL': url,
-      'Device-Fingerprint': headers.get('X-Device-Fingerprint'),
-      'Request-Count': headers.get('X-Request-Count'),
-      'App-Version': headers.get('X-App-Version')
-    });
 
-    return this.http.get(url, { 
-      responseType: 'blob',
-      headers: headers
-    }).pipe(
+    return this.http.get(url, { responseType: 'blob' }).pipe(
       takeUntil(this.cancelRequest$),
       timeout(60000), // 60 second timeout to prevent hanging requests
       catchError(error => {
@@ -458,53 +443,15 @@ export class R2AudioService {
 
     console.log('🎵 Preparing streaming audio track:', track.title);
 
-    // First, test the streaming connection
-    return this.testStreamingPerformance(track.r2Path).pipe(
-      // If streaming test passes, proceed with streaming
-      map(() => {
-        const streamingUrl = this.getStreamingAudioUrl(track.r2Path);
-        console.log('🎵 Streaming URL generated:', streamingUrl);
-
-        // Start preloading metadata in background for better UX
-        this.preloadAudioMetadata(track.r2Path).subscribe({
-          next: (metadata) => {
-            console.log('🎵 Audio metadata preloaded:', metadata);
-          },
-          error: (error) => {
-            console.warn('⚠️ Could not preload metadata (non-critical):', error);
-          }
-        });
-
-        track.isLoading = false;
-        return {
-          ...track,
-          audioUrl: streamingUrl,
-          isLoading: false
-        };
-      }),
-      // If streaming fails, fallback to download method
-      catchError((streamingError) => {
-        console.warn('⚠️ Streaming failed, falling back to download method:', streamingError);
-        return this.prepareAudioTrackWithDownload(track);
-      }),
-      // Final error handling
-      catchError((error) => {
-        console.error('❌ All audio preparation methods failed for track:', track.title, error);
-        track.isLoading = false;
-        
-        // Return a safe fallback that won't crash the app
-        return of({
-          ...track,
-          audioUrl: '', // Empty URL to prevent crashes
-          isLoading: false,
-          error: 'Audio unavailable'
-        });
-      }),
-      // Ensure loading state is always cleared
-      finalize(() => {
-        track.isLoading = false;
-      })
-    );
+    const streamingUrl = this.getStreamingAudioUrl(track.r2Path);
+    // Start preloading metadata in background for better UX
+    this.preloadAudioMetadata(track.r2Path).subscribe({ next: () => {}, error: () => {} });
+    track.isLoading = false;
+    return of({
+      ...track,
+      audioUrl: streamingUrl,
+      isLoading: false
+    });
   }
 
   /**
@@ -855,13 +802,6 @@ export class R2AudioService {
       try {
         const freshUrl = this.getFreshSignedUrl(r2Path);
 
-        // Fire-and-forget lightweight validation to warm up path; never blocks emission
-        try {
-          this.testStreamingPerformance(r2Path)
-            .pipe(timeout(5000))
-            .subscribe({ next: () => {}, error: () => {} });
-        } catch {}
-
         observer.next(freshUrl);
         observer.complete();
       } catch (error) {
@@ -904,14 +844,41 @@ export class R2AudioService {
    * Get audio URL with automatic refresh if needed
    */
   getAudioUrlWithAutoRefresh(r2Path: string, currentUrl?: string): Observable<string> {
-    // If we have a current URL, check if it's still valid
-    if (currentUrl && this.isUrlValid(currentUrl)) {
-      console.log('✅ Current URL is still valid, using existing URL');
-      return of(currentUrl);
-    }
-
-    // Generate fresh URL
+    // Always generate fresh URL for new playback/start
     console.log('🔄 Generating fresh audio URL for:', r2Path);
-    return this.refreshAudioUrlForBackground(r2Path);
+    const url = this.getFreshSignedUrl(r2Path);
+    return of(url);
+  }
+
+  // Rolling refresh lifecycle for long playback without changing audio src.
+  startRollingRefresh(r2Path: string): void {
+    try { this.stopRollingRefresh(r2Path); } catch {}
+    const refresh = () => {
+      const fresh = this.getFreshSignedUrl(r2Path);
+      // Warm session at Worker with a HEAD request (no custom headers)
+      this.http.head(fresh, { observe: 'response' })
+        .pipe(timeout(5000), catchError(() => of(null)))
+        .subscribe();
+    };
+    refresh();
+    const iv = setInterval(refresh, Math.floor(this.URL_TTL_MS * this.REFRESH_RATIO));
+    this.refreshTimers.set(r2Path, iv);
+  }
+
+  stopRollingRefresh(r2Path?: string): void {
+    if (!r2Path) {
+      for (const [k, v] of this.refreshTimers.entries()) { try { clearInterval(v); } catch {} }
+      this.refreshTimers.clear();
+      return;
+    }
+    const h = this.refreshTimers.get(r2Path);
+    if (h) { try { clearInterval(h); } catch {} this.refreshTimers.delete(r2Path); }
+  }
+
+  triggerImmediateRefresh(r2Path: string): void {
+    const fresh = this.getFreshSignedUrl(r2Path);
+    this.http.head(fresh, { observe: 'response' })
+      .pipe(timeout(5000), catchError(() => of(null)))
+      .subscribe();
   }
 } 
