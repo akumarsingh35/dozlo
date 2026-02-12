@@ -19,6 +19,7 @@ import { R2AudioService, AudioTrack } from '../services/r2-audio.service';
 import { R2ImageService } from '../services/r2-image.service';
 import { FirebaseDataService, FirebaseCategory, FirebaseSection, FirebaseStory } from '../services/firebase-data.service';
 import { ScrollManagerService } from '../services/scroll-manager.service';
+import { ConnectivityService } from '../services/connectivity.service';
 import { environment } from 'src/environments/environment';
 
 
@@ -37,7 +38,7 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
   imagesLoaded = false;
   networkError = false;
   isRetrying = false;
-  private networkErrorTimer: any = null;
+  private wasOnline = true;
 
   categories: FirebaseCategory[] = [];
   selectedCategory: FirebaseCategory | null = null;
@@ -72,7 +73,8 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     private r2ImageService: R2ImageService,
     private firebaseDataService: FirebaseDataService,
     private categoryService: CategoryService,
-    private scrollManager: ScrollManagerService
+    private scrollManager: ScrollManagerService,
+    private connectivity: ConnectivityService
   ) {
     this.audios$ = this.audioService.getAllAudioStories().pipe(
       catchError(error => {
@@ -140,7 +142,8 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
       r2Path: story.r2Path || story.audioPath || '',
       photoUrl: story.imageUrl || '',
       description: story.subTitle || '',
-      resumePosition: 0 // You can add resume position logic here if needed
+      resumePosition: 0, // You can add resume position logic here if needed
+      duration: Number(story.duration || 0),
     };
 
     console.log('🎵 [DEBUG] Home page - Play request created:', playRequest);
@@ -606,6 +609,16 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     console.log('🏠 HomePage ngOnInit - Starting global data integration...');
     this.setDefaultState();
     this.loadGlobalData();
+    this.connectivity.isOnline$.pipe(takeUntil(this.destroy$)).subscribe((online) => {
+      this.networkError = !online;
+      if (!this.wasOnline && online) {
+        const hasNoData = (this.categories?.length || 0) === 0 && (this.currentSections?.length || 0) === 0;
+        if (hasNoData && !this.isRetrying) {
+          this.retryLoad();
+        }
+      }
+      this.wasOnline = online;
+    });
 
     // Subscribe to auth state and update login banner
     this.authService.user$.pipe(
@@ -652,32 +665,14 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
         if (loaded) {
           console.log('🏠 Global data is loaded, setting up categories...');
           this.setupCategories();
-          this.networkError = false;
-          if (this.networkErrorTimer) { clearTimeout(this.networkErrorTimer); this.networkErrorTimer = null; }
         } else {
           console.log('🏠 Global data not loaded yet...');
-          if ((this.categories?.length || 0) === 0 && !this.networkErrorTimer) {
-            this.networkErrorTimer = setTimeout(() => {
-              if ((this.categories?.length || 0) === 0) {
-                this.networkError = true;
-              }
-              this.networkErrorTimer = null;
-            }, 2500);
-          }
         }
       },
       error: (error) => {
         console.error('🏠 Error in data loaded subscription:', error);
         // Fallback: try to setup categories anyway
         this.setupCategories();
-        if (!this.networkErrorTimer) {
-          this.networkErrorTimer = setTimeout(() => {
-            if ((this.categories?.length || 0) === 0) {
-              this.networkError = true;
-            }
-            this.networkErrorTimer = null;
-          }, 2500);
-        }
       }
     });
     
@@ -686,32 +681,28 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
       if (this.categories.length === 0) {
         console.log('🏠 Fallback: trying to get categories directly...');
         this.setupCategories();
-        if (!this.categories.length && !this.networkErrorTimer) {
-          this.networkErrorTimer = setTimeout(() => {
-            if ((this.categories?.length || 0) === 0) {
-              this.networkError = true;
-            }
-            this.networkErrorTimer = null;
-          }, 1000);
-        }
       }
     }, 2000);
   }
 
-  retryLoad() {
+  async retryLoad() {
     if (this.isRetrying) return;
     this.isRetrying = true;
+    const online = await this.connectivity.refreshStatus();
+    this.networkError = !online;
+    if (!online) {
+      this.isRetrying = false;
+      return;
+    }
     this.firebaseDataService.refreshGlobalData().subscribe({
       next: (ok) => {
         this.isRetrying = false;
-        this.networkError = !ok;
         if (ok) {
           this.setupCategories();
         }
       },
       error: () => {
         this.isRetrying = false;
-        this.networkError = true;
       }
     });
   }

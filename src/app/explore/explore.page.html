@@ -18,7 +18,7 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content #contentContainer>
+<ion-content #contentContainer [scrollY]="!isLoading">
 
     <div class="initial-content" *ngIf="!showResults">
     <!-- Loading Spinner -->

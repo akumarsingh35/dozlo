@@ -4,19 +4,11 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content #contentContainer>
-  <!-- Network Error Banner -->
-  <div *ngIf="networkError" class="network-error-banner">
-    <ion-icon name="cloud-offline-outline" class="error-icon"></ion-icon>
-    <div class="error-text">
-      <h3>Internet connection is not working</h3>
-      <p>Please connect to internet and try again</p>
-    </div>
-    <ion-button fill="solid" size="small" (click)="retryLoad()" [disabled]="isRetrying">
-      <ion-spinner *ngIf="isRetrying" name="crescent"></ion-spinner>
-      <span *ngIf="!isRetrying">Try Again</span>
-    </ion-button>
-  </div>
+<ion-content
+  #contentContainer
+  [scrollY]="imagesLoaded || currentSections.length > 0"
+  [class.home-scroll-ready]="imagesLoaded || currentSections.length > 0"
+>
   <!-- Loading Spinner -->
   <div *ngIf="!imagesLoaded && !currentSections.length" class="loading-container">
     <ion-spinner name="crescent"></ion-spinner>
@@ -282,4 +274,3 @@
     <div class="footer-spacer"></div>
   </div>
 </ion-content>
-

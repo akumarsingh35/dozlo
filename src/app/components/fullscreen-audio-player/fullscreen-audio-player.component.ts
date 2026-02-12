@@ -1,7 +1,6 @@
-import { Component, Input, OnInit, OnDestroy } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule, ModalController } from '@ionic/angular';
-import { Howl } from 'howler';
 import { GlobalAudioPlayerService } from '../../services/global-audio-player.service';
 import { AmbientAudioService } from '../../services/ambient-audio.service';
 import { Subscription } from 'rxjs';
@@ -36,37 +35,44 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
 
   // UI interaction state
   isDragging = false;
+  isSeekPending = false;
   private pendingSeekTime: number | null = null;
   private pendingSeekTimer: any = null;
 
   constructor(
     private modalController: ModalController,
     private ambientAudioService: AmbientAudioService,
-    public globalAudioPlayerService: GlobalAudioPlayerService // Public for template access
+    public globalAudioPlayerService: GlobalAudioPlayerService,
+    private ngZone: NgZone
   ) {}
 
   ngOnInit() {
     this.subscriptions.add(
       this.globalAudioPlayerService.audioState$.subscribe(state => {
-        this.isPlaying = state.isPlaying;
-        this.isLoading = state.isLoading;
-        this.duration = state.duration;
-        if (this.pendingSeekTime !== null) {
-          const cur = state.currentTime || 0;
-          const ok = Math.abs(cur - this.pendingSeekTime) <= 1;
-          if (ok) {
-            this.progress = state.progress;
-            this.currentTime = cur;
-            this.pendingSeekTime = null;
-            if (this.pendingSeekTimer) { clearTimeout(this.pendingSeekTimer); this.pendingSeekTimer = null; }
-            this.isDragging = false;
-          } else {
-            // ignore progress update until seek lands near target
+        this.ngZone.run(() => {
+          this.isPlaying = state.isPlaying;
+          this.isLoading = state.isLoading;
+          this.duration = state.duration;
+          if (this.duration <= 0 && state.currentTrack?.duration && state.currentTrack.duration > 0) {
+            this.duration = state.currentTrack.duration;
           }
-        } else if (!this.isDragging) {
-          this.progress = state.progress;
-          this.currentTime = state.currentTime || 0;
-        }
+          if (this.pendingSeekTime !== null) {
+            const cur = state.currentTime || 0;
+            const ok = Math.abs(cur - this.pendingSeekTime) <= 2;
+            if (ok) {
+              this.progress = state.progress;
+              this.currentTime = cur;
+              this.pendingSeekTime = null;
+              if (this.pendingSeekTimer) { clearTimeout(this.pendingSeekTimer); this.pendingSeekTimer = null; }
+              this.isDragging = false;
+              this.isSeekPending = false;
+              console.warn(`🎯 [AUDIO_SYNC_UI] Seek landed currentTime=${cur} duration=${this.duration}`);
+            }
+          } else if (!this.isDragging) {
+            this.progress = state.progress;
+            this.currentTime = state.currentTime || 0;
+          }
+        });
       })
     );
 
@@ -75,6 +81,9 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
         this.ambientTracks = tracks.map(track => ({ ...track, volume: Number(track.volume) || 0 }));
       })
     );
+
+    // Ensure timing is populated for long streams
+    this.globalAudioPlayerService.refreshTiming();
   }
 
   ngOnDestroy() {
@@ -96,12 +105,18 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
   seekBackward() {
     this.globalAudioPlayerService.cancelActiveSeek();
     const newTime = Math.max(0, this.currentTime - 15);
+    this.isSeekPending = true;
+    console.warn(`🎯 [AUDIO_SYNC_UI] Seek backward from=${this.currentTime} to=${newTime} duration=${this.duration}`);
     this.globalAudioPlayerService.seekTo(newTime);
   }
 
   seekForward() {
     this.globalAudioPlayerService.cancelActiveSeek();
-    const newTime = Math.min(this.duration, this.currentTime + 15);
+    const newTime = this.duration > 0
+      ? Math.min(this.duration, this.currentTime + 15)
+      : this.currentTime + 15;
+    this.isSeekPending = true;
+    console.warn(`🎯 [AUDIO_SYNC_UI] Seek forward from=${this.currentTime} to=${newTime} duration=${this.duration}`);
     this.globalAudioPlayerService.seekTo(newTime);
   }
 
@@ -127,13 +142,17 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
       this.pendingSeekTime = seekTime;
       this.progress = progress;
       this.currentTime = seekTime;
+      this.isSeekPending = true;
+      console.warn(`🎯 [AUDIO_SYNC_UI] Slider seek requested seekTime=${seekTime} duration=${this.duration} progress=${progress}`);
       this.globalAudioPlayerService.seekTo(seekTime);
       if (this.pendingSeekTimer) { clearTimeout(this.pendingSeekTimer); }
       this.pendingSeekTimer = setTimeout(() => {
+        console.warn(`🎯 [AUDIO_SYNC_UI] Seek confirmation timeout pendingSeekTime=${this.pendingSeekTime} currentTime=${this.currentTime} duration=${this.duration}`);
         this.pendingSeekTime = null;
         this.isDragging = false;
+        this.isSeekPending = false;
         this.pendingSeekTimer = null;
-      }, 2500);
+      }, 7000);
     }
   }
 
@@ -170,9 +189,9 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
   }
 
   getIcon(id: string): string {
-    if (id.toLowerCase().includes('rain')) return 'water-outline';
+    if (id.toLowerCase().includes('rain')) return 'rainy-outline';
     if (id.toLowerCase().includes('cricket')) return 'bug-outline';
-    if (id.toLowerCase().includes('ocean')) return 'pulse-outline';
+    if (id.toLowerCase().includes('ocean')) return 'water-outline';
     return 'musical-notes-outline';
   }
 

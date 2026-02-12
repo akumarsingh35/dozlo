@@ -13,10 +13,22 @@ export default {
       });
     }
 
+    // Only allow GET/HEAD for streaming
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return new Response('Method Not Allowed', {
+        status: 405,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        },
+      });
+    }
+
     const url = new URL(request.url);
     const key = url.searchParams.get('path');
     const timestamp = url.searchParams.get('ts');
     const signature = url.searchParams.get('sig');
+    const fp = url.searchParams.get('fp');
 
     if (!key) {
       return new Response('Missing "path" query parameter', {
@@ -38,7 +50,8 @@ export default {
     }
 
     // Verify signature (using algorithm that matches frontend)
-    const expectedSignature = this.generateSecureSignatureSync(key, timestamp, env.APP_SECRET_KEY);
+    const signaturePath = fp ? `${key}:${fp}` : key;
+    const expectedSignature = this.generateSecureSignatureSync(signaturePath, timestamp, env.APP_SECRET_KEY);
     if (signature !== expectedSignature) {
       return new Response('Invalid signature', {
         status: 401,
@@ -47,6 +60,12 @@ export default {
         },
       });
     }
+
+    // Create a stable cache key that ignores signature params (after signature validation)
+    const cacheUrl = new URL(request.url);
+    cacheUrl.searchParams.delete('sig');
+    cacheUrl.searchParams.delete('ts');
+    const cacheKey = new Request(cacheUrl.toString(), { method: 'GET' });
 
     // Enhanced security checks (since no expiration)
     const deviceFingerprint = request.headers.get('X-Device-Fingerprint');
@@ -59,7 +78,7 @@ export default {
     const rateLimitKey = `rate_limit:${deviceFingerprint || 'unknown'}`;
     const currentHour = Math.floor(Date.now() / (60 * 60 * 1000)); // Current hour timestamp
     
-    const rateLimitData = this.getRateLimitData(rateLimitKey, currentHour);
+    const rateLimitData = await this.getRateLimitData(env, rateLimitKey, currentHour);
     
     // Allow 300 requests per device per hour (increased for growing userbase)
     const maxRequestsPerHour = 300;
@@ -75,7 +94,7 @@ export default {
     }
 
     // Update rate limit
-    this.updateRateLimitData(rateLimitKey, currentHour);
+    await this.updateRateLimitData(env, rateLimitKey, currentHour);
 
     // Log security info for monitoring (only for suspicious activity)
     const urlAge = Math.floor((Date.now() - parseInt(timestamp)) / (60 * 1000));
@@ -97,6 +116,20 @@ export default {
       const rangeHeader = request.headers.get('Range');
       let object;
       let isRangeRequest = false;
+
+      // Fast path: cache full object (no range) to reduce R2 reads and improve startup
+      if (!rangeHeader) {
+        const cached = await caches.default.match(cacheKey);
+        if (cached) {
+          if (request.method === 'HEAD') {
+            return new Response(null, {
+              status: cached.status,
+              headers: cached.headers,
+            });
+          }
+          return cached;
+        }
+      }
 
       if (rangeHeader) {
         // Parse the range header properly
@@ -140,20 +173,20 @@ export default {
           status: 304,
           headers: {
             'ETag': etag,
-            'Cache-Control': 'public, max-age=86400, immutable',
+            'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800, stale-if-error=604800, immutable',
             'Access-Control-Allow-Origin': '*',
           },
         });
       }
 
-      const contentType = object.httpMetadata?.contentType || (key && key.toLowerCase().endsWith('.aac') ? 'audio/aac' : 'audio/mpeg');
+      const contentType = object.httpMetadata?.contentType || this.getContentType(key);
       
       // COST OPTIMIZATION: Aggressive caching headers to reduce R2 requests
       const headers = {
         'Content-Type': contentType,
         'ETag': etag,
         'Accept-Ranges': 'bytes',
-        'Cache-Control': 'public, max-age=86400, immutable, stale-while-revalidate=604800', // 24 hours + 7 days stale
+        'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800, stale-if-error=604800, immutable', // 1 day browser + 7 days edge stale
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-App-Secret, X-Device-Fingerprint, X-Request-Count, X-Request-Timestamp, X-Platform, X-App-Version, User-Agent, Range, If-Range, If-None-Match',
@@ -165,12 +198,31 @@ export default {
 
       // Handle range response for TRUE STREAMING
       if (isRangeRequest && object.range) {
+        // Invalid or unsatisfiable ranges should return 416
+        const rangeEnd = object.range.offset + object.range.length - 1;
+        if (rangeEnd >= object.size || object.range.offset < 0) {
+          return new Response(null, {
+            status: 416,
+            headers: {
+              ...headers,
+              'Content-Range': `bytes */${object.size}`,
+            },
+          });
+        }
+
         headers['Content-Range'] = `bytes ${object.range.offset}-${object.range.offset + object.range.length - 1}/${object.size}`;
         headers['Content-Length'] = object.range.length;
         
         // COST OPTIMIZATION: Cache range requests separately
         headers['Cache-Control'] = 'public, max-age=3600, immutable'; // 1 hour for range requests
         
+        if (request.method === 'HEAD') {
+          return new Response(null, {
+            status: 206,
+            headers,
+          });
+        }
+
         return new Response(object.body, {
           status: 206,
           headers,
@@ -178,10 +230,20 @@ export default {
       }
 
       headers['Content-Length'] = object.size;
-      return new Response(object.body, {
+      if (request.method === 'HEAD') {
+        return new Response(null, {
+          status: 200,
+          headers,
+        });
+      }
+
+      const response = new Response(object.body, {
         status: 200,
         headers,
       });
+      // Store full objects in cache (not ranges) to speed up startup and reduce R2 reads
+      ctx.waitUntil(caches.default.put(cacheKey, response.clone()));
+      return response;
     } catch (err) {
       console.error('Fetch error:', err);
       return new Response('Error retrieving file', {
@@ -193,11 +255,28 @@ export default {
     }
   },
 
-  // COST OPTIMIZATION: In-memory rate limiting (resets on worker restart)
-  // For production with large userbase, consider using Cloudflare KV for persistent rate limiting
+  // COST OPTIMIZATION: In-memory rate limiting fallback (resets on worker restart)
+  // For production, use Cloudflare KV for consistent rate limiting across instances.
   rateLimitStore: new Map(),
 
-  getRateLimitData(key, currentHour) {
+  async getRateLimitData(env, key, currentHour) {
+    if (env.RATE_LIMIT_KV) {
+      const kvKey = `${key}:${currentHour}`;
+      const raw = await env.RATE_LIMIT_KV.get(kvKey);
+      if (!raw) {
+        return { count: 0, hour: currentHour };
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.hour === currentHour && typeof parsed.count === 'number') {
+          return parsed;
+        }
+      } catch {
+        // Fallback to reset
+      }
+      return { count: 0, hour: currentHour };
+    }
+
     const data = this.rateLimitStore.get(key);
     if (!data || data.hour !== currentHour) {
       return { count: 0, hour: currentHour };
@@ -205,8 +284,17 @@ export default {
     return data;
   },
 
-  updateRateLimitData(key, currentHour) {
-    const data = this.getRateLimitData(key, currentHour);
+  async updateRateLimitData(env, key, currentHour) {
+    if (env.RATE_LIMIT_KV) {
+      const kvKey = `${key}:${currentHour}`;
+      const current = await this.getRateLimitData(env, key, currentHour);
+      const next = { count: current.count + 1, hour: currentHour };
+      // Expire after 2 hours to allow clock skew and late requests
+      await env.RATE_LIMIT_KV.put(kvKey, JSON.stringify(next), { expirationTtl: 2 * 60 * 60 });
+      return;
+    }
+
+    const data = await this.getRateLimitData(env, key, currentHour);
     data.count++;
     this.rateLimitStore.set(key, data);
   },
@@ -230,11 +318,20 @@ export default {
     hash = (hash * prime + entropy) % mod;
     
     return Math.abs(hash).toString(16).padStart(8, '0');
-  }
+  },
+
+  getContentType(key) {
+    const lower = (key || '').toLowerCase();
+    if (lower.endsWith('.m4a') || lower.endsWith('.mp4')) return 'audio/mp4';
+    if (lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.ogg') || lower.endsWith('.oga')) return 'audio/ogg';
+    if (lower.endsWith('.opus')) return 'audio/opus';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.flac')) return 'audio/flac';
+    if (lower.endsWith('.m3u8')) return 'application/vnd.apple.mpegurl';
+    return 'audio/mpeg';
+  },
 };
-
-
-
 
 
 

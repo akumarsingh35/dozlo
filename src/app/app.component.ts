@@ -1,11 +1,11 @@
-import { Component, AfterViewInit, ViewChild, OnDestroy } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, OnDestroy, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule, IonRouterOutlet, Platform } from '@ionic/angular';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { addIcons } from 'ionicons';
-import { homeOutline, bookOutline, searchOutline, personOutline } from 'ionicons/icons';
+import { homeOutline, bookOutline, searchOutline, personOutline, cloudOfflineOutline } from 'ionicons/icons';
 import { GlobalAudioPlayerComponent } from './global-audio-player/global-audio-player.component';
 import { NavFooterComponent } from './shared/nav-footer/nav-footer.component';
 import { GlobalAudioPlayerService, AudioState } from './services/global-audio-player.service';
@@ -15,8 +15,8 @@ import { HttpClientModule } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { MediaSession } from '@jofr/capacitor-media-session';
 import { FirebaseAnalytics } from '@capacitor-firebase/analytics';
+import { ConnectivityService } from './services/connectivity.service';
 
 @Component({
   selector: 'app-root',
@@ -29,8 +29,11 @@ import { FirebaseAnalytics } from '@capacitor-firebase/analytics';
 export class AppComponent implements AfterViewInit, OnDestroy {
   audioState: AudioState = { isPlaying: false, currentTrack: null, progress: 0, duration: 0, isLoading: false, loadingTrackId: '', currentTime: 0 };
   private audioSub: Subscription;
+  private networkSub?: Subscription;
   showFooterAndAudio = true;
   private currentUrl = '/home';
+  isOnline = true;
+  isCheckingNetwork = false;
   @ViewChild(IonRouterOutlet, { static: false }) routerOutlet!: IonRouterOutlet;
 
   constructor(
@@ -38,16 +41,26 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     private globalAudioPlayer: GlobalAudioPlayerService,
     private authService: AuthService,
     private router: Router,
-    private backButton: BackButtonService
+    private backButton: BackButtonService,
+    private ngZone: NgZone,
+    private connectivity: ConnectivityService
   ) {
-    addIcons({ homeOutline, bookOutline, searchOutline, personOutline });
+    addIcons({ homeOutline, bookOutline, searchOutline, personOutline, cloudOfflineOutline });
     
     this.initializeApp();
     this.setupAppStateHandling();
     this.audioSub = this.globalAudioPlayer.audioState$.subscribe(state => {
-      this.audioState = state;
-      // Update CSS custom properties for dynamic padding
-      this.updateContentPadding();
+      this.ngZone.run(() => {
+        this.audioState = state;
+        // Update CSS custom properties for dynamic padding
+        this.updateContentPadding();
+      });
+    });
+
+    this.connectivity.init().then(() => {
+      this.networkSub = this.connectivity.isOnline$.subscribe((online) => {
+        this.isOnline = online;
+      });
     });
     
     // Listen to route changes to hide footer and audio on sign-in page
@@ -95,59 +108,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Force cleanup of all notifications - more aggressive approach
-   */
-  private forceCleanupNotifications(): void {
-    if (Capacitor.isNativePlatform() && MediaSession) {
-      
-      try {
-        // Set playback state to none
-        MediaSession.setPlaybackState({ playbackState: 'none' });
-        
-        // Clear all metadata to ensure notification is completely removed
-        MediaSession.setMetadata({
-          title: '',
-          artist: '',
-          album: '',
-          artwork: []
-        });
-        
-        // Additional cleanup with multiple attempts to ensure removal
-        setTimeout(() => {
-          try {
-            MediaSession.setPlaybackState({ playbackState: 'none' });
-            MediaSession.setMetadata({
-              title: '',
-              artist: '',
-              album: '',
-              artwork: []
-            });
-          } catch (error) {
-            console.warn('⚠️ Error during delayed notification cleanup:', error);
-          }
-        }, 50);
-        
-        setTimeout(() => {
-          try {
-            MediaSession.setPlaybackState({ playbackState: 'none' });
-            MediaSession.setMetadata({
-              title: '',
-              artist: '',
-              album: '',
-              artwork: []
-            });
-          } catch (error) {
-            console.warn('⚠️ Error during final notification cleanup:', error);
-          }
-        }, 200);
-        
-      } catch (error) {
-        console.warn('⚠️ Error during force notification cleanup:', error);
-      }
-    }
-  }
-
-  /**
    * Ensure notification state is clean when app resumes
    */
   private ensureCleanNotificationState(): void {
@@ -160,32 +120,18 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (this.audioSub) {
       this.audioSub.unsubscribe();
     }
-    
-    // Clean up MediaSession notification when app is destroyed
-    this.cleanupMediaSessionOnDestroy();
+    if (this.networkSub) {
+      this.networkSub.unsubscribe();
+    }
   }
 
-  /**
-   * Clean up MediaSession notification when app is destroyed
-   */
-  private cleanupMediaSessionOnDestroy(): void {
-    if (Capacitor.isNativePlatform() && MediaSession) {
-      
-      try {
-        // Set playback state to none
-        MediaSession.setPlaybackState({ playbackState: 'none' });
-        
-        // Clear metadata to ensure notification is completely removed
-        MediaSession.setMetadata({
-          title: '',
-          artist: '',
-          album: '',
-          artwork: []
-        });
-        
-      } catch (error) {
-        console.warn('⚠️ Error cleaning up MediaSession notification:', error);
-      }
+  async retryNetwork(): Promise<void> {
+    if (this.isCheckingNetwork) return;
+    this.isCheckingNetwork = true;
+    try {
+      await this.connectivity.refreshStatus();
+    } finally {
+      this.isCheckingNetwork = false;
     }
   }
 

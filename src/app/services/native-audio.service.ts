@@ -1,6 +1,5 @@
 import { Injectable, NgZone } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
-import { MediaSession } from '@jofr/capacitor-media-session';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { BehaviorSubject, Observable } from 'rxjs';
 
@@ -52,11 +51,6 @@ export class NativeAudioService {
     try {
       // Enable background mode for Android
       if (Capacitor.isNativePlatform()) {
-        // Set up media session for Android
-        if (MediaSession) {
-          this.setupMediaSession();
-        }
-
         // Set up notification controls
         await this.setupNotificationControls();
       }
@@ -66,26 +60,6 @@ export class NativeAudioService {
     } catch (error) {
       console.error('Error initializing native audio service:', error);
     }
-  }
-
-  private setupMediaSession() {
-    if (!MediaSession) return;
-
-    // Set up media session action handlers - only play/pause
-    MediaSession.setActionHandler({ action: 'play' }, () => {
-      this.ngZone.run(() => {
-        this.play();
-      });
-    });
-
-    MediaSession.setActionHandler({ action: 'pause' }, () => {
-      this.ngZone.run(() => {
-        this.pause();
-      });
-    });
-
-    // Removed stop, seekto, previoustrack, and nexttrack handlers
-    // Only play/pause functionality available in notification
   }
 
   private async setupNotificationControls() {
@@ -131,16 +105,6 @@ export class NativeAudioService {
         duration: this.audioElement.duration || 0
       });
 
-      // Update media session metadata
-      if (Capacitor.isNativePlatform() && MediaSession) {
-        MediaSession.setMetadata({
-          title: track.title,
-          artist: track.artist || 'Dozlo',
-          album: track.album || 'Dozlo Stories',
-          artwork: track.artwork ? [{ src: track.artwork, sizes: '512x512', type: 'image/png' }] : []
-        });
-      }
-
       console.log('Track loaded successfully:', track.title);
     } catch (error) {
       console.error('Error loading track:', error);
@@ -167,9 +131,6 @@ export class NativeAudioService {
         this.updateState({ isPlaying: true });
         this.startProgressTracking();
         
-        if (Capacitor.isNativePlatform() && MediaSession) {
-          MediaSession.setPlaybackState({ playbackState: 'playing' });
-        }
       });
     });
 
@@ -178,9 +139,6 @@ export class NativeAudioService {
         this.updateState({ isPlaying: false });
         this.stopProgressTracking();
         
-        if (Capacitor.isNativePlatform() && MediaSession) {
-          MediaSession.setPlaybackState({ playbackState: 'paused' });
-        }
       });
     });
 
@@ -189,9 +147,6 @@ export class NativeAudioService {
         this.updateState({ isPlaying: false });
         this.stopProgressTracking();
         
-        if (Capacitor.isNativePlatform() && MediaSession) {
-          MediaSession.setPlaybackState({ playbackState: 'none' });
-        }
       });
     });
 
@@ -258,21 +213,6 @@ export class NativeAudioService {
       duration: 0
     });
     
-    if (Capacitor.isNativePlatform() && MediaSession) {
-      MediaSession.setPlaybackState({ playbackState: 'none' });
-      
-      // Clear metadata to ensure notification is completely removed
-      try {
-        MediaSession.setMetadata({
-          title: '',
-          artist: '',
-          album: '',
-          artwork: []
-        });
-      } catch (error) {
-        console.warn('⚠️ Error clearing MediaSession metadata:', error);
-      }
-    }
   }
 
   seekTo(time: number): void {

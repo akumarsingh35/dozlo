@@ -30,7 +30,7 @@
       <ion-range
         aria-label="Seek slider"
         class="progress-bar"
-        [class.seek-loading]="isDragging"
+        [class.seek-loading]="isDragging || isSeekPending"
         [value]="progress * 100"
         (ionKnobMoveStart)="onProgressBarDragStart()"
         (ionInput)="onProgressBarDragging($event)"

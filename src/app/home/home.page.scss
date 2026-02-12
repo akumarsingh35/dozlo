@@ -400,6 +400,11 @@ ion-content::part(scroll)::-webkit-scrollbar {
   touch-action: pan-y pinch-zoom;
 }
 
+/* Prevent first-render scrollbar flash on Home before content is ready */
+ion-content:not(.home-scroll-ready)::part(scroll) {
+  overflow: hidden !important;
+}
+
 ion-footer {
   z-index: 1000 !important; /* Prevent overlap */
   position: fixed !important; /* Pin to bottom */

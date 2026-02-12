@@ -181,7 +181,8 @@ export class ExploreCategoryPage implements OnInit, OnDestroy {
       r2Path: story.r2Path || story.audioPath || '',
       photoUrl: story.imageUrl || '',
       description: story.subTitle || '',
-      resumePosition: 0 // You can add resume position logic here if needed
+      resumePosition: 0, // You can add resume position logic here if needed
+      duration: Number(story.duration || 0),
     };
 
     // Use the centralized method that handles all the fixes

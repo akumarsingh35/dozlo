@@ -78,7 +78,7 @@ import { Subscription } from 'rxjs';
     }
     .close-btn {
       position: absolute;
-      right: 0;
+      left: 0;
       top: 50%;
       transform: translateY(-50%);
       background: rgba(255, 255, 255, 0.1);
@@ -248,9 +248,9 @@ export class AmbientSettingsComponent implements OnInit, OnDestroy {
 
   getIcon(id: string): string {
     // Map track id to icon name
-    if (id.toLowerCase().includes('rain')) return 'water-outline';
+    if (id.toLowerCase().includes('rain')) return 'rainy-outline';
     if (id.toLowerCase().includes('cricket')) return 'bug-outline';
-    if (id.toLowerCase().includes('ocean')) return 'pulse-outline'; // Changed to pulse-outline for ocean waves
+    if (id.toLowerCase().includes('ocean')) return 'water-outline';
     // Add more mappings as needed
     return 'musical-notes-outline';
   }

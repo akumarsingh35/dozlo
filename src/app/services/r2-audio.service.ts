@@ -79,6 +79,25 @@ export class R2AudioService {
     );
   }
 
+  /**
+   * Prefetch the beginning of the file to speed up initial start.
+   */
+  prefetchStartChunk(r2Path: string, chunkSize: number = 512 * 1024): Observable<void> {
+    if (!r2Path || !Number.isFinite(chunkSize) || chunkSize <= 0) {
+      return of(void 0);
+    }
+
+    const url = this.getWorkerUrl(r2Path);
+    const end = Math.max(0, Math.floor(chunkSize) - 1);
+    const headers = new HttpHeaders({ 'Range': `bytes=0-${end}` });
+
+    return this.http.get(url, { headers, responseType: 'blob', observe: 'response' }).pipe(
+      timeout(5000),
+      map(() => void 0),
+      catchError(() => of(void 0))
+    );
+  }
+
   // Initialize simple security features without extra dependencies
   private initializeSecurity(): void {
     try {

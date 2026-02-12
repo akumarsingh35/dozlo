@@ -1,18 +1,20 @@
 
 <ion-app>
+  <div class="global-offline-banner" *ngIf="!isOnline">
+    <ion-icon name="cloud-offline-outline" class="offline-icon"></ion-icon>
+    <div class="offline-text">
+      <strong>No internet connection</strong>
+      <span>Please check your network and try again.</span>
+    </div>
+    <ion-button fill="solid" size="small" (click)="retryNetwork()" [disabled]="isCheckingNetwork">
+      <ion-spinner *ngIf="isCheckingNetwork" name="crescent"></ion-spinner>
+      <span *ngIf="!isCheckingNetwork">Retry</span>
+    </ion-button>
+  </div>
   <ion-router-outlet [animated]="true" [ngClass]="{
     'with-footer': showFooterAndAudio,
     'with-footer-and-player': showFooterAndAudio && audioState.currentTrack
   }"></ion-router-outlet>
-  <app-global-audio-player
-    *ngIf="showFooterAndAudio"
-    [audioUrl]="audioState.currentTrack?.audioUrl || ''"
-    [title]="audioState.currentTrack?.title || ''"
-    [photoUrl]="audioState.currentTrack?.photoUrl || ''"
-    [description]="audioState.currentTrack?.description || ''"
-    [r2Path]="audioState.currentTrack?.r2Path || ''"
-    [storyId]="audioState.currentTrack?.storyId || ''"
-    [resumePosition]="0"
-  ></app-global-audio-player>
+  <app-global-audio-player *ngIf="showFooterAndAudio"></app-global-audio-player>
   <app-nav-footer *ngIf="showFooterAndAudio"></app-nav-footer>
 </ion-app>

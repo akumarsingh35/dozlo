@@ -17,6 +17,10 @@ export interface AmbientTrack {
   providedIn: 'root'
 })
 export class AmbientAudioService {
+  // Use WebAudio backend for ambient loops so they can mix with native main audio.
+  // `html5: true` routes through platform media player and can steal audio focus.
+  private readonly useHtml5Ambient = false;
+
   private tracks: AmbientTrack[] = [
     { id: 'rain', name: 'Rain', path: 'assets/audio/calming-rain.mp3', volume: 0, isMuted: false, isPlaying: false },
     { id: 'cricket', name: 'Cricket', path: 'assets/audio/cricket-sound.mp3', volume: 0, isMuted: false, isPlaying: false },
@@ -29,7 +33,7 @@ export class AmbientAudioService {
 
   private mainAudioPlaying = false;
   private mainAudioPaused = false;
-  private debugEnabled = true;
+  private debugEnabled = false;
   
   // CRITICAL FIX: Enhanced track management
   private initializationInProgress = false;
@@ -78,7 +82,7 @@ export class AmbientAudioService {
         src: [track.path],
         loop: true,
         volume: 0, // Start muted
-        html5: true,
+        html5: this.useHtml5Ambient,
         preload: true,
         onload: () => {
           this.log(`${track.name} loaded successfully`);
@@ -205,7 +209,7 @@ export class AmbientAudioService {
       src: [track.path],
       loop: true,
       volume: 0,
-      html5: true,
+      html5: this.useHtml5Ambient,
       preload: false, // Try without preload for problematic devices
       onload: () => {
         this.log(`${track.name} loaded successfully on retry`);

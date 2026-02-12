@@ -10,7 +10,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "build:secure": "ng build --configuration production && node scripts/obfuscate.js",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "postinstall": "node scripts/apply-native-audio-patch.js"
   },
   "private": true,
   "dependencies": {
@@ -35,7 +36,7 @@
     "@capacitor/network": "^7.0.1",
     "@capacitor/status-bar": "^7.0.1",
     "@ionic/angular": "^8.2.0",
-    "@jofr/capacitor-media-session": "^4.0.0",
+    "@mediagrid/capacitor-native-audio": "^2.3.0",
     "@types/howler": "^2.2.12",
     "firebase": "^11.10.0",
     "howler": "^2.2.4",
@@ -74,6 +75,7 @@
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
+    "patch-package": "^8.0.1",
     "typescript": "~5.8.0"
   },
   "description": "An Ionic project"

@@ -292,14 +292,25 @@ ion-header {
 
   ion-range.custom-range {
     padding: 0;
-    --bar-background: var(--slider-track-background);
-    --bar-background-active: var(--slider-track-fill);
+    --bar-background: #28223b;
+    --bar-background-active: #a299f9;
     --bar-height: 6px;
     --bar-border-radius: 3px;
-    --knob-size: 18px;
-    --knob-background: var(--text-primary);
-    --pin-background: var(--accent-primary);
-    --pin-color: var(--text-primary);
+    --knob-size: 22px;
+    --knob-background: #fff;
+    --knob-border-radius: 50%;
+    --knob-box-shadow: 0 2px 8px rgba(127, 88, 255, 0.15);
+    --knob-color: #a299f9;
+    --pin-background: transparent;
+    --pin-color: transparent;
+    --ticks-background: transparent;
+    --ticks-background-active: transparent;
+    margin: 0;
+    width: 100%;
+    min-width: 120px;
+    max-width: 100%;
+    height: 32px;
+    padding: 0;
   }
 }
 
@@ -317,5 +328,4 @@ ion-header {
     transform: rotate(360deg);
   }
 }
-
 

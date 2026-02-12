@@ -8,7 +8,6 @@ import { FullscreenAudioPlayerComponent } from '../components/fullscreen-audio-p
 import { Router, NavigationEnd } from '@angular/router';
 import { AmbientAudioService } from '../services/ambient-audio.service';
 import { App } from '@capacitor/app';
-import { MediaSession } from '@jofr/capacitor-media-session';
 import { R2AudioService } from '../services/r2-audio.service';
 import { GlobalAudioPlayerService } from '../services/global-audio-player.service';
 import { FavoritesService } from '../services/favorites.service';
@@ -111,7 +110,7 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
   ngOnInit() {
     // Subscribe to global audio state changes
     this.globalAudioPlayerService.audioState$.subscribe(state => {
-      this.syncWithGlobalService(state);
+      this.ngZone.run(() => this.syncWithGlobalService(state));
     });
   }
 
@@ -393,27 +392,29 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
       isPlaying: this.isPlaying,
       isLoading: this.isLoading,
       isPlayButtonLoading: this.isPlayButtonLoading,
-      shouldShowPlayer: this.shouldShowPlayer
+      shouldShowPlayer: this.shouldShowPlayer,
+      trackId: this.storyId
     };
 
     // Update component state from global service
     this.isPlaying = state.isPlaying;
     this.isLoading = state.isLoading;
     this.isPlayButtonLoading = state.isLoading;
-    this.title = state.currentTrack?.title || null;
-    this.photoUrl = state.currentTrack?.photoUrl || null;
-    this.description = state.currentTrack?.description || null;
-    this.r2Path = state.currentTrack?.r2Path || null;
-    this.storyId = state.currentTrack?.storyId || null;
-    this.audioUrl = state.currentTrack?.audioUrl || null;
+    if (state.currentTrack) {
+      this.title = state.currentTrack.title || null;
+      this.photoUrl = state.currentTrack.photoUrl || null;
+      this.description = state.currentTrack.description || null;
+      this.r2Path = state.currentTrack.r2Path || null;
+      this.storyId = state.currentTrack.storyId || null;
+      this.audioUrl = state.currentTrack.audioUrl || null;
+    }
 
     // Determine if player should be visible
-    this.shouldShowPlayer = !!state.currentTrack;
+    this.shouldShowPlayer = !!state.currentTrack || !!state.isLoading || !!state.isPlaying;
 
     // Update favorite status if track changed
-    if (state.currentTrack?.storyId !== previousState.shouldShowPlayer) {
+    if (state.currentTrack?.storyId !== previousState.trackId) {
       this.updateFavoriteStatus();
     }
   }
 } 
-

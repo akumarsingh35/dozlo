@@ -105,7 +105,8 @@ export class CategoryPage implements OnInit, OnDestroy {
       r2Path: story.r2Path || story.audioPath || '',
       photoUrl: story.imageUrl || story.image || '',
       description: story.subTitle || story.subtitle || '',
-      resumePosition: 0 // You can add resume position logic here if needed
+      resumePosition: 0, // You can add resume position logic here if needed
+      duration: Number(story.duration || 0),
     };
 
     // Use the centralized method that handles all the fixes
@@ -124,4 +125,3 @@ export class CategoryPage implements OnInit, OnDestroy {
     this.router.navigate(['/explore']);
   }
 }
-

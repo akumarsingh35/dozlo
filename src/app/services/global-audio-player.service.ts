@@ -4,8 +4,7 @@ import { finalize } from 'rxjs/operators';
 import { R2AudioService } from './r2-audio.service';
 import { AmbientAudioService } from './ambient-audio.service';
 import { LibraryDataService } from './library-data.service';
-import { Howl } from 'howler';
-import { MediaSession } from '@jofr/capacitor-media-session';
+import { AudioPlayer } from '@mediagrid/capacitor-native-audio';
 import { Capacitor } from '@capacitor/core';
 import { AnalyticsService } from './analytics.service';
 
@@ -26,6 +25,7 @@ export interface AudioTrack {
   description: string;
   r2Path?: string;
   storyId?: string;
+  duration?: number;
 }
 
 export interface PlayRequest {
@@ -35,6 +35,7 @@ export interface PlayRequest {
   photoUrl?: string;
   description?: string;
   resumePosition?: number;
+  duration?: number;
 }
 
 @Injectable({
@@ -62,19 +63,32 @@ export class GlobalAudioPlayerService {
   private isSlowNetwork = false;
   private slowNetworkThrottleDelay = 2000;
 
-  private currentHowl: Howl | null = null;
   private progressInterval: any = null;
   private stallWatchInterval: any = null;
   private lastProgressAt = 0;
   private stallThresholdMs = 15000;
+  private isProgressUpdating = false;
 
   private seekLock = false;
   private activeSeekController: AbortController | null = null;
   private seekToken = 0;
+  private seekDebounceTimer: any = null;
+  private pendingSeekTime: number | null = null;
 
   private currentPlaySub: Subscription | null = null;
   private currentPrefetchSub: Subscription | null = null;
   private playToken = 0;
+  private lastPlayStartAt = 0;
+  private nativeAudioId = 'primary';
+  private nativeCreated = false;
+  private nativeReady = false;
+  private nativeListenersRegistered = false;
+  private lastTrack: AudioTrack | null = null;
+  private seekResetTimer: any = null;
+  private seekVerifyTimer: any = null;
+  private seekInProgress = false;
+  private pendingResumeAfterSeek: boolean | null = null;
+  private readonly debugAudioSync = false;
 
   constructor(
     private r2AudioService: R2AudioService,
@@ -82,35 +96,11 @@ export class GlobalAudioPlayerService {
     private libraryDataService: LibraryDataService,
     private analytics: AnalyticsService
   ) {
-    this.setupMediaSession();
     this.setupNetworkMonitoring();
     this.setupAndroidAudioSession();
   }
 
-  private setupMediaSession(): void {
-    if (!Capacitor.isNativePlatform() || !MediaSession) return;
-    try {
-      MediaSession.setActionHandler({ action: 'play' }, () => this.resumeFromNotification());
-      MediaSession.setActionHandler({ action: 'pause' }, () => this.pauseFromNotification());
-      MediaSession.setActionHandler({ action: 'stop' }, () => this.stopFromNotification());
-      MediaSession.setActionHandler({ action: 'seekbackward' }, () => this.seekBackwardFromNotification());
-      MediaSession.setActionHandler({ action: 'seekforward' }, () => this.seekForwardFromNotification());
-    } catch (error) {
-      console.error('🎵 Error setting up MediaSession:', error);
-    }
-  }
-
   private setupAndroidAudioSession(): void {}
-
-  private getHtmlAudioElement(): HTMLAudioElement | null {
-    try {
-      const howlAny: any = this.currentHowl as any;
-      const node: HTMLAudioElement | undefined = howlAny?._sounds?.[0]?._node;
-      return node || null;
-    } catch {
-      return null;
-    }
-  }
 
   playFromCard(request: PlayRequest): Promise<boolean> {
     return this.playAudioFromAnyPage(request);
@@ -141,114 +131,15 @@ export class GlobalAudioPlayerService {
       ).subscribe({
         next: (audioUrl) => {
           if (myPlayToken !== this.playToken) { resolve(false); return; }
-          this.currentHowl = new Howl({
-            src: [audioUrl],
-            html5: true,
-            preload: false,
-            loop: false,
-            volume: 1.0,
-            format: ['mp3', 'wav', 'ogg', 'm4a', 'aac'],
-            onload: () => {
-              if (myPlayToken !== this.playToken) return;
-              this.consecutiveFailures = 0;
-              this.isNetworkError = false;
-              this.updateState({ duration: this.currentHowl?.duration() || 0 });
-              this.updateMediaSessionMetadata();
-              // Persist basic metadata for continue listening
-              this.persistLibraryEntry(request);
-              // Begin rolling signed-URL refresh while playing
-              if (request.r2Path) {
-                this.r2AudioService.startRollingRefresh(request.r2Path);
-              }
-              if (request.resumePosition && request.resumePosition > 0) {
-                this.seekTo(request.resumePosition);
-              }
-            },
-            onloaderror: (id, error) => { if (myPlayToken !== this.playToken) return; this.tryFallbackAudioLoading(request, audioUrl); },
-            onplay: () => {
-              if (myPlayToken !== this.playToken) return;
-              this.startProgressTracking();
-              if (this.seekLock) {
-                this.updateState({ isPlaying: true });
-              } else {
-                this.updateState({ isPlaying: true, isLoading: false, loadingTrackId: '' });
-              }
-              this.updateMediaSessionMetadata();
-              this.updateMediaSessionPlaybackState(true);
-              // Ensure rolling refresh is active on play/resume
-              const rp = this.audioState.getValue().currentTrack?.r2Path;
-              if (rp) {
-                this.r2AudioService.startRollingRefresh(rp);
-              }
-              // Log audio_play event
-              const track = this.audioState.getValue().currentTrack;
-              if (track) {
-                this.analytics.logAudioPlay(
-                  track.storyId || track.audioUrl || '',
-                  track.title || '',
-                  this.currentHowl?.duration() || 0
-                );
-              }
-            },
-            onplayerror: (id, error) => { if (myPlayToken !== this.playToken) return; this.handleAudioError('play', error); },
-            onpause: () => {
-              if (myPlayToken !== this.playToken) return;
-              this.stopProgressTracking();
-              this.updateState({ isPlaying: false });
-              this.updateMediaSessionPlaybackState(false);
-              // Pause rolling refresh to save network
-              const rp = this.audioState.getValue().currentTrack?.r2Path;
-              if (rp) { this.r2AudioService.stopRollingRefresh(rp); }
-              // Log audio_pause event
-              const track = this.audioState.getValue().currentTrack;
-              if (track) {
-                this.analytics.logAudioPause(
-                  track.storyId || track.audioUrl || '',
-                  this.currentHowl?.seek() as number || 0
-                );
-              }
-            },
-            onend: () => {
-              if (myPlayToken !== this.playToken) return;
-              this.stopProgressTracking();
-              this.updateState({ isPlaying: false, progress: 0, currentTrack: null });
-              // Update media session state in a safe, staged way to avoid plugin race conditions
-              try {
-                // First mark as paused to stop progress updates in the notification
-                this.updateMediaSessionPlaybackState(false);
-              } catch (e) {}
-              // Then clear metadata and set state to none after a short delay so the service can settle
-              setTimeout(() => {
-                try {
-                  if (Capacitor.isNativePlatform() && MediaSession) {
-                    MediaSession.setPlaybackState({ playbackState: 'none' });
-                  }
-                } catch (e) {}
-                this.clearMediaSessionMetadata();
-              }, 200);
-              // Stop rolling refresh at end
-              if (request.r2Path) { this.r2AudioService.stopRollingRefresh(request.r2Path); }
-              // Mark completed in library when playback naturally ends
-              if (request.storyId) {
-                this.libraryDataService.markCompleted(request.storyId);
-              }
-              // Log audio_stop event (on end)
-              const track = this.audioState.getValue().currentTrack;
-              if (track) {
-                this.analytics.logAudioStop(
-                  track.storyId || track.audioUrl || '',
-                  track.title || '',
-                  this.currentHowl?.duration() || 0
-                );
-              }
-            },
-          });
-
-          this.updateMediaSessionMetadata();
-          this.updateMediaSessionPlaybackState(true);
-          this.currentHowl.play();
-          this.ambientAudioService.onMainAudioPlay();
-          resolve(true);
+          // Warm initial bytes and metadata for faster start
+          if (request.r2Path) {
+            this.r2AudioService.prefetchStartChunk(request.r2Path).subscribe();
+            this.r2AudioService.preloadAudioMetadata(request.r2Path).subscribe({ next: () => {}, error: () => {} });
+          }
+          this.lastPlayStartAt = Date.now();
+          this.startNativePlayback(audioUrl, request, myPlayToken)
+            .then(() => resolve(true))
+            .catch(() => resolve(false));
         },
         error: (err) => {
           this.handleNetworkError(request.storyId, err.message);
@@ -272,42 +163,26 @@ export class GlobalAudioPlayerService {
     this.updateState({ isLoading: isLoading, loadingTrackId: isLoading ? trackId : '' });
   }
 
-  play() {
-    if (this.currentHowl && !this.currentHowl.playing()) {
-      this.currentHowl.play();
-      this.ambientAudioService.onMainAudioResume();
-      // Log audio_resume event
-      const track = this.audioState.getValue().currentTrack;
-      if (track) {
-        this.analytics.logAudioResume(
-          track.storyId || track.audioUrl || '',
-          this.currentHowl?.seek() as number || 0
-        );
-      }
+  private debugLog(message: string, data?: any): void {
+    if (!this.debugAudioSync) return;
+    if (typeof data === 'undefined') {
+      console.log(`🎯 [AUDIO_SYNC] ${message}`);
+      return;
     }
+    console.log(`🎯 [AUDIO_SYNC] ${message}`, data);
+  }
+
+  play() {
+    this.resumeNativePlayback();
   }
 
   pause() {
-    if (this.currentHowl?.playing()) {
-      this.currentHowl.pause();
-      this.ambientAudioService.onMainAudioPause();
-      const rp = this.audioState.getValue().currentTrack?.r2Path;
-      if (rp) { this.r2AudioService.stopRollingRefresh(rp); }
-      // Log audio_pause event (already handled in Howl onpause, but keep for manual pause calls)
-      const track = this.audioState.getValue().currentTrack;
-      if (track) {
-        this.analytics.logAudioPause(
-          track.storyId || track.audioUrl || '',
-          this.currentHowl?.seek() as number || 0
-        );
-      }
-    }
+    this.pauseNativePlayback();
   }
 
   stop() {
     this.stopCurrentAudio();
     this.updateState({ isPlaying: false, currentTrack: null, progress: 0, duration: 0 });
-    this.clearMediaSessionMetadata();
     this.r2AudioService.stopRollingRefresh();
     // Log audio_stop event (manual stop)
     const track = this.audioState.getValue().currentTrack;
@@ -315,34 +190,106 @@ export class GlobalAudioPlayerService {
       this.analytics.logAudioStop(
         track.storyId || track.audioUrl || '',
         track.title || '',
-        this.currentHowl?.seek() as number || 0
+        this.audioState.getValue().currentTime || 0
       );
     }
   }
 
   async seekTo(time: number): Promise<void> {
-    if (this.seekLock || typeof time !== 'number' || !this.currentHowl) {
+    console.warn(`🎯 [AUDIO_SYNC] seekTo called time=${time} lock=${this.seekLock} inProgress=${this.seekInProgress}`);
+    if (typeof time !== 'number') {
+      return;
+    }
+
+    // Debounce rapid seek calls; only last request is executed
+    if (this.seekLock) {
+      this.pendingSeekTime = time;
+      this.schedulePendingSeek();
+      return;
+    }
+    if (this.seekDebounceTimer) {
+      this.pendingSeekTime = time;
+      return;
+    }
+    this.pendingSeekTime = time;
+    this.seekDebounceTimer = setTimeout(() => {
+      const next = this.pendingSeekTime;
+      this.pendingSeekTime = null;
+      this.seekDebounceTimer = null;
+      console.warn(`🎯 [AUDIO_SYNC] seek debounce fired next=${next}`);
+      if (typeof next === 'number') {
+        this.performSeek(next);
+      }
+    }, 120);
+  }
+
+  private schedulePendingSeek(): void {
+    if (this.seekDebounceTimer) return;
+    this.seekDebounceTimer = setTimeout(() => {
+      const next = this.pendingSeekTime;
+      this.pendingSeekTime = null;
+      this.seekDebounceTimer = null;
+      if (typeof next === 'number') {
+        this.performSeek(next);
+      }
+    }, 150);
+  }
+
+  private async performSeek(time: number): Promise<void> {
+    console.warn(`🎯 [AUDIO_SYNC] performSeek start time=${time} lock=${this.seekLock}`);
+    if (this.seekLock || typeof time !== 'number') {
       return;
     }
 
     this.seekLock = true;
+    this.seekInProgress = true;
+    this.stopProgressTracking();
     const startedTrackId = this.audioState.getValue().currentTrack?.storyId || '';
     if (startedTrackId) { this.setLoading(true, startedTrackId); }
+    this.ambientAudioService.onMainAudioSeek();
     this.cancelActiveSeek();
     this.activeSeekController = new AbortController();
     const signal = this.activeSeekController.signal;
     const myToken = ++this.seekToken;
 
     try {
-      await this.waitForHowlReady(signal);
+      if (this.seekResetTimer) { clearTimeout(this.seekResetTimer); this.seekResetTimer = null; }
+      this.seekResetTimer = setTimeout(() => {
+        if (myToken === this.seekToken) {
+          if (startedTrackId) { this.setLoading(false, startedTrackId); }
+          this.seekLock = false;
+          this.seekInProgress = false;
+        }
+      }, 9000);
+
+      // Do not block seek for long on nativeReady; long streams can report
+      // ready late while still being seekable.
+      try {
+        await Promise.race([
+          this.waitForNativeReady(signal),
+          new Promise<void>((resolve) => setTimeout(resolve, 600)),
+        ]);
+      } catch {}
       if (signal.aborted) return;
+      this.debugLog('Seek proceeding after readiness gate', { nativeReady: this.nativeReady });
 
-      const duration = this.currentHowl.duration();
-      if (typeof duration !== 'number' || duration <= 0) {
-        return;
+      let duration = this.audioState.getValue().duration || 0;
+      if (!duration) {
+        duration = await this.getNativeDuration();
+        if (duration) {
+          this.updateState({ duration });
+        }
       }
-
-      const seekTime = Math.max(0, Math.min(time, duration));
+      const canClampToDuration = typeof duration === 'number' && duration > 0;
+      const seekTime = canClampToDuration
+        ? Math.max(0, Math.min(time, duration))
+        : Math.max(0, time);
+      this.debugLog('Seek requested', {
+        requestedTime: time,
+        seekTime,
+        duration,
+        canClampToDuration,
+      });
       // Prefetch a small chunk near the seek point to warm caches
       const r2Path = this.audioState.getValue().currentTrack?.r2Path || '';
       this.currentPrefetchSub?.unsubscribe();
@@ -351,39 +298,71 @@ export class GlobalAudioPlayerService {
         this.r2AudioService.triggerImmediateRefresh(r2Path);
         this.currentPrefetchSub = this.r2AudioService.prefetchChunkForSeek(r2Path, duration, seekTime).subscribe();
       }
-      const node = this.getHtmlAudioElement();
-      if (node) {
+      const wasPlaying = await this.isNativePlaying();
+      if (this.pendingResumeAfterSeek === null) {
+        this.pendingResumeAfterSeek = wasPlaying;
+      }
+      const resumeAfterSeek = !!this.pendingResumeAfterSeek;
+      // Do direct seek first while preserving current playback state.
+      // On some Media3 session states, pause->seek can make seek command unavailable.
+      console.warn(`🎯 [AUDIO_SYNC] native seek call timeInSeconds=${Math.floor(seekTime)} wasPlaying=${wasPlaying}`);
+      await AudioPlayer.seek({ audioId: this.nativeAudioId, timeInSeconds: Math.floor(seekTime) });
+      this.debugLog('Seek command sent', { seekTime: Math.floor(seekTime), wasPlaying, strategy: 'direct' });
+      // Wait for seek to land before any potential resume action.
+      const seekStart = Date.now();
+      let landed = false;
+      while (!signal.aborted && Date.now() - seekStart < 4000) {
+        const cur = await this.getNativeCurrentTime();
+        if (Math.abs(cur - seekTime) <= 2) {
+          landed = true;
+          break;
+        }
+        await new Promise(r => setTimeout(r, 200));
+      }
+      if (!landed) {
+        // Retry via re-initialize path. This helps when controller temporarily
+        // rejects seek command for long streams.
+        this.debugLog('Seek did not land after direct call, retrying with initialize', { seekTime });
         try {
-          const fast: any = (node as any).fastSeek;
-          if (typeof fast === 'function') {
-            fast.call(node, seekTime);
-          } else {
-            node.currentTime = seekTime;
+          await AudioPlayer.initialize({ audioId: this.nativeAudioId });
+          await AudioPlayer.seek({ audioId: this.nativeAudioId, timeInSeconds: Math.floor(seekTime) });
+          const retryStart = Date.now();
+          while (!signal.aborted && Date.now() - retryStart < 2500) {
+            const cur = await this.getNativeCurrentTime();
+            if (Math.abs(cur - seekTime) <= 2) {
+              landed = true;
+              break;
+            }
+            await new Promise(r => setTimeout(r, 200));
           }
-        } catch {}
+        } catch (retryError) {
+          this.debugLog('Seek retry failed', { error: String((retryError as any)?.message || retryError) });
+        }
       }
-      this.currentHowl.seek(seekTime);
-
-      if (!this.currentHowl.playing()) {
-        try { this.currentHowl.play(); } catch {}
+      if (resumeAfterSeek) {
+        console.warn('🎯 [AUDIO_SYNC] native play after seek');
+        await AudioPlayer.play({ audioId: this.nativeAudioId });
+        this.updateState({ isPlaying: true });
+      } else {
+        this.updateState({ isPlaying: false });
       }
+      this.pendingResumeAfterSeek = null;
 
       await new Promise(resolve => setTimeout(resolve, 150));
       if (signal.aborted) return;
 
-      const actualSeek = this.currentHowl.seek() as number;
+      const actualSeek = await this.getNativeCurrentTime();
+      this.debugLog('Seek verification', { seekTime, actualSeek, delta: Math.abs(actualSeek - seekTime) });
       if (myToken === this.seekToken) {
         this.updateState({
           progress: duration > 0 ? actualSeek / duration : 0,
           currentTime: actualSeek,
         });
-        this.updateMediaSessionPositionState();
       }
 
-      const startedHowl = this.currentHowl;
       const startedTrack = this.audioState.getValue().currentTrack?.storyId || '';
-      const confirmInterval = setInterval(() => {
-        if (signal.aborted || this.currentHowl !== startedHowl || (this.audioState.getValue().currentTrack?.storyId || '') !== startedTrack) {
+      const confirmInterval = setInterval(async () => {
+        if (signal.aborted || (this.audioState.getValue().currentTrack?.storyId || '') !== startedTrack) {
           clearInterval(confirmInterval);
           return;
         }
@@ -391,12 +370,10 @@ export class GlobalAudioPlayerService {
           clearInterval(confirmInterval);
           return;
         }
-        const cur = this.currentHowl?.seek() as number;
-        const playing = !!this.currentHowl?.playing();
-        const htmlNode = this.getHtmlAudioElement();
-        const ready = htmlNode ? (htmlNode.readyState >= 3) : false;
-        const moved = typeof cur === 'number' && (cur - seekTime) > 0.15;
-        if ((playing && moved) || (ready && moved)) {
+        const cur = await this.getNativeCurrentTime();
+        const moved = typeof cur === 'number' && Math.abs(cur - seekTime) <= 2;
+        const playbackSettled = !resumeAfterSeek || (await this.isNativePlaying());
+        if (moved && playbackSettled) {
           if ((this.audioState.getValue().currentTrack?.storyId || '') === startedTrack) {
             this.setLoading(false, startedTrack);
           }
@@ -405,8 +382,24 @@ export class GlobalAudioPlayerService {
       }, 200);
       signal.addEventListener('abort', () => clearInterval(confirmInterval), { once: true });
 
+      // If seek doesn't land, retry once after 1s
+      if (this.seekVerifyTimer) { clearTimeout(this.seekVerifyTimer); }
+      this.seekVerifyTimer = setTimeout(async () => {
+        if (signal.aborted || myToken !== this.seekToken) return;
+        const cur = await this.getNativeCurrentTime();
+        if (Math.abs(cur - seekTime) > 2) {
+          try {
+            await AudioPlayer.initialize({ audioId: this.nativeAudioId });
+            await AudioPlayer.seek({ audioId: this.nativeAudioId, timeInSeconds: Math.floor(seekTime) });
+            if (resumeAfterSeek) {
+              await AudioPlayer.play({ audioId: this.nativeAudioId });
+            }
+          } catch {}
+        }
+      }, 1000);
+
     } catch (error: any) {
-      // Ignore AbortError; if timeout occurred from waitForHowlReady, continue silently
+      // Ignore AbortError; if timeout occurred from waitForNativeReady, continue silently
       if (error && error.name !== 'AbortError') {
         const msg = String(error?.message || '').toLowerCase();
         if (!msg.includes('timed out waiting') && !msg.includes('timeout')) {
@@ -415,21 +408,25 @@ export class GlobalAudioPlayerService {
       }
     } finally {
       // Spinner cleared by confirmation interval when playback resumes
+      if (this.seekResetTimer) { clearTimeout(this.seekResetTimer); this.seekResetTimer = null; }
+      if (this.seekVerifyTimer) { clearTimeout(this.seekVerifyTimer); this.seekVerifyTimer = null; }
+      this.ambientAudioService.onMainAudioSeekComplete();
       this.seekLock = false;
+      this.seekInProgress = false;
+      this.pendingResumeAfterSeek = null;
       this.activeSeekController = null;
+      if (this.audioState.getValue().isPlaying) {
+        this.startProgressTracking();
+      }
     }
-  }
-
-  attachHowl(howl: Howl): void {
-    this.stopCurrentAudio();
-    this.currentHowl = howl;
-    this.updateState({ duration: howl.duration() });
   }
 
   cancelActiveSeek(): void {
     this.activeSeekController?.abort();
     this.activeSeekController = null;
     this.seekToken++;
+    if (this.seekResetTimer) { clearTimeout(this.seekResetTimer); this.seekResetTimer = null; }
+    if (this.seekVerifyTimer) { clearTimeout(this.seekVerifyTimer); this.seekVerifyTimer = null; }
   }
 
   updateProgressUiOnly(progress: number): void {
@@ -440,32 +437,45 @@ export class GlobalAudioPlayerService {
     }
   }
 
-  waitForHowlReady(signal: AbortSignal): Promise<void> {
+  waitForNativeReady(signal: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
       if (signal.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+      let checkInterval: any = null;
 
       const onAbort = () => {
         clearTimeout(timeoutId);
+        if (checkInterval) {
+          clearInterval(checkInterval);
+        }
         reject(new DOMException('Aborted', 'AbortError'));
       };
       signal.addEventListener('abort', onAbort, { once: true });
 
-      if (this.currentHowl?.state() === 'loaded') {
+      if (this.nativeReady) {
+        this.debugLog('waitForNativeReady immediate resolve');
         signal.removeEventListener('abort', onAbort);
         return resolve();
       }
 
       const timeoutId = setTimeout(() => {
         // Resolve after grace timeout to allow fallback seek/play logic to proceed
+        this.debugLog('waitForNativeReady timeout resolve');
+        if (checkInterval) {
+          clearInterval(checkInterval);
+        }
         signal.removeEventListener('abort', onAbort);
         resolve();
       }, 15000);
 
-      this.currentHowl?.once('load', () => {
-        signal.removeEventListener('abort', onAbort);
-        clearTimeout(timeoutId);
-        resolve();
-      });
+      checkInterval = setInterval(() => {
+        if (this.nativeReady) {
+          this.debugLog('waitForNativeReady resolved by nativeReady');
+          clearInterval(checkInterval);
+          signal.removeEventListener('abort', onAbort);
+          clearTimeout(timeoutId);
+          resolve();
+        }
+      }, 200);
     });
   }
 
@@ -473,72 +483,17 @@ export class GlobalAudioPlayerService {
     this.audioState.next({ ...this.audioState.getValue(), ...newState });
   }
 
-  private updateMediaSessionPositionState() {
-    if (!Capacitor.isNativePlatform() || !MediaSession || !this.currentHowl) return;
-    try {
-      const duration = this.currentHowl.duration();
-      const position = this.currentHowl.seek();
-      MediaSession.setPositionState({ duration: duration, playbackRate: 1, position: typeof position === 'number' ? position : 0 });
-    } catch (error) {
-      console.error('🎵 Error updating MediaSession position state:', error);
-    }
-  }
-
-  private async tryFallbackAudioLoading(request: PlayRequest, originalAudioUrl: string): Promise<void> {
-    try {
-      this.currentHowl = new Howl({
-        src: [originalAudioUrl],
-        html5: false, // Try with html5 disabled
-        preload: false,
-        onload: () => {
-          this.updateState({ duration: this.currentHowl?.duration() || 0 });
-          this.updateMediaSessionMetadata();
-          this.currentHowl?.play();
-        },
-        onloaderror: (id, error) => this.handleAudioError('load', error),
-      });
-    } catch (fallbackError) {
-      this.handleNetworkError(request.storyId, 'All audio loading strategies failed.');
-    }
-  }
-
   private stopCurrentAudio() {
     this.cancelActiveSeek();
-    if (this.currentHowl) {
-      this.currentHowl.stop();
-      this.currentHowl.unload();
-      this.currentHowl = null;
-    }
-    this.stopProgressTracking();
-  }
-
-  private pauseCurrentAudio() {
-    if (this.currentHowl?.playing()) {
-      this.currentHowl.pause();
-    }
+    this.stopNativePlayback();
     this.stopProgressTracking();
   }
 
   private startProgressTracking() {
     this.stopProgressTracking();
     this.progressInterval = setInterval(() => {
-      if (this.currentHowl?.playing()) {
-        const seek = this.currentHowl.seek() as number;
-        const duration = this.currentHowl.duration();
-        const progress = duration > 0 ? seek / duration : 0;
-        const prevTime = this.audioState.getValue().currentTime || 0;
-        this.updateState({ progress: progress, currentTime: seek });
-        if (typeof seek === 'number' && seek > prevTime + 0.05) {
-          this.lastProgressAt = Date.now();
-        }
-        this.updateMediaSessionPositionState();
-        // Persist progress periodically to local storage for continue listening
-        const track = this.audioState.getValue().currentTrack;
-        if (track?.storyId) {
-          this.libraryDataService.updateProgress(track.storyId, progress);
-        }
-      }
-    }, 250);
+      this.updateNativeProgress();
+    }, 500);
     this.startStallWatch();
   }
 
@@ -554,9 +509,8 @@ export class GlobalAudioPlayerService {
     this.stopStallWatch();
     this.lastProgressAt = Date.now();
     this.stallWatchInterval = setInterval(() => {
-      const h = this.currentHowl;
-      if (!h) return;
-      if (!h.playing()) {
+      if (!this.nativeReady) return;
+      if (!this.isNativePlayingSync()) {
         this.lastProgressAt = Date.now();
         return;
       }
@@ -575,10 +529,9 @@ export class GlobalAudioPlayerService {
   }
 
   private recoverFromStall() {
-    const h = this.currentHowl;
-    if (!h) return;
-    const pos = (h.seek() as number) || 0;
-    const dur = h.duration() || 0;
+    if (!this.nativeReady) return;
+    const pos = this.audioState.getValue().currentTime || 0;
+    const dur = this.audioState.getValue().duration || 0;
     const r2Path = this.audioState.getValue().currentTrack?.r2Path || '';
     try {
       if (r2Path && dur > 0) {
@@ -586,44 +539,20 @@ export class GlobalAudioPlayerService {
         this.currentPrefetchSub = this.r2AudioService.prefetchChunkForSeek(r2Path, dur, pos).subscribe();
       }
     } catch {}
-    try { h.pause(); } catch {}
+    this.pauseNativePlayback();
     setTimeout(() => {
-      try { h.play(); this.lastProgressAt = Date.now(); } catch {}
+      this.resumeNativePlayback();
+      this.lastProgressAt = Date.now();
     }, 200);
   }
 
-  private updateMediaSessionPlaybackState(isPlaying: boolean) {
-    if (!Capacitor.isNativePlatform() || !MediaSession) return;
-    try {
-      MediaSession.setPlaybackState({ playbackState: isPlaying ? 'playing' : 'paused' });
-    } catch (error) {
-      console.error('🎵 Error updating MediaSession playback state:', error);
+  private logStartupLatency(): void {
+    if (!this.lastPlayStartAt) return;
+    const delta = Date.now() - this.lastPlayStartAt;
+    if (delta > 0 && delta < 120000) {
+      console.log(`🎵 Startup latency: ${delta}ms`);
     }
-  }
-
-  private updateMediaSessionMetadata() {
-    if (!Capacitor.isNativePlatform() || !MediaSession) return;
-    const state = this.audioState.getValue();
-    if (state.currentTrack) {
-      MediaSession.setMetadata({
-        title: state.currentTrack.title,
-        artist: 'Dozlo',
-        album: state.currentTrack.description || '',
-        artwork: [{ src: state.currentTrack.photoUrl || '', sizes: '512x512' }]
-      });
-    }
-  }
-
-  private clearMediaSessionMetadata() {
-    if (!Capacitor.isNativePlatform() || !MediaSession) return;
-    try {
-      // Provide safe defaults to avoid plugin NPEs when fields are missing
-      MediaSession.setMetadata({ title: '', artist: '', album: '', artwork: [] as any });
-      MediaSession.setPositionState({ duration: 0, playbackRate: 1, position: 0 });
-      MediaSession.setPlaybackState({ playbackState: 'none' });
-    } catch (error) {
-      console.error('🎵 Error clearing MediaSession metadata:', error);
-    }
+    this.lastPlayStartAt = 0;
   }
 
   private handleNetworkError(trackId: string, message: string) {
@@ -642,18 +571,30 @@ export class GlobalAudioPlayerService {
   }
 
   private updateTrackImmediately(request: PlayRequest) {
+    // Firebase story duration is stored in minutes in this app.
+    const knownDurationMinutes = Number(request.duration || 0);
+    const knownDurationSeconds = Number.isFinite(knownDurationMinutes) && knownDurationMinutes > 0
+      ? knownDurationMinutes * 60
+      : 0;
     const track: AudioTrack = {
       title: request.title,
       photoUrl: request.photoUrl || '',
       description: request.description || '',
       storyId: request.storyId,
       r2Path: request.r2Path,
-      audioUrl: ''
+      audioUrl: '',
+      duration: knownDurationSeconds,
     };
+    this.lastTrack = track;
     this.updateState({
       currentTrack: track,
       progress: 0,
-      duration: 0,
+      duration: track.duration || 0,
+    });
+    this.debugLog('Track selected', {
+      storyId: request.storyId,
+      title: request.title,
+      knownDurationSeconds: track.duration || 0,
     });
   }
 
@@ -696,7 +637,286 @@ export class GlobalAudioPlayerService {
   private seekForwardFromNotification() {
     const currentTime = this.audioState.getValue().currentTime || 0;
     const duration = this.audioState.getValue().duration || 0;
-    this.seekTo(Math.min(duration, currentTime + 15));
+    this.seekTo(duration > 0 ? Math.min(duration, currentTime + 15) : currentTime + 15);
+  }
+
+  private async startNativePlayback(audioUrl: string, request: PlayRequest, token: number): Promise<void> {
+    if (!Capacitor.isNativePlatform()) {
+      throw new Error('Native playback requires native platform');
+    }
+
+    const metadata = {
+      audioId: this.nativeAudioId,
+      audioSource: audioUrl,
+      friendlyTitle: request.title,
+      albumTitle: request.description || '',
+      artistName: 'Dozlo',
+      artworkSource: request.photoUrl || '',
+      useForNotification: true,
+      showSeekBackward: false,
+      showSeekForward: false,
+      seekBackwardTime: 0,
+      seekForwardTime: 0,
+      loop: false,
+    };
+
+    if (!this.nativeCreated) {
+      await AudioPlayer.create(metadata);
+      this.nativeCreated = true;
+      await this.ensureNativeListeners();
+    } else {
+      await AudioPlayer.changeAudioSource({ audioId: this.nativeAudioId, source: audioUrl });
+      await AudioPlayer.changeMetadata({
+        audioId: this.nativeAudioId,
+        friendlyTitle: request.title,
+        albumTitle: request.description || '',
+        artistName: 'Dozlo',
+        artworkSource: request.photoUrl || '',
+      });
+    }
+
+    this.nativeReady = false;
+    await AudioPlayer.initialize({ audioId: this.nativeAudioId });
+    await AudioPlayer.play({ audioId: this.nativeAudioId });
+
+    this.ambientAudioService.onMainAudioPlay();
+    this.logStartupLatency();
+
+    // Persist basic metadata for continue listening
+    this.persistLibraryEntry(request);
+    if (request.r2Path) {
+      this.r2AudioService.startRollingRefresh(request.r2Path);
+    }
+
+    if (request.resumePosition && request.resumePosition > 0) {
+      await this.performSeek(request.resumePosition);
+    }
+
+    if (token === this.playToken) {
+      this.updateState({ isPlaying: true, isLoading: false, loadingTrackId: '', currentTrack: this.lastTrack || this.audioState.getValue().currentTrack });
+      this.startProgressTracking();
+    }
+
+    const track = this.audioState.getValue().currentTrack;
+    if (track) {
+      this.analytics.logAudioPlay(
+        track.storyId || track.audioUrl || '',
+        track.title || '',
+        this.audioState.getValue().duration || 0
+      );
+    }
+  }
+
+  private async ensureNativeListeners(): Promise<void> {
+    if (this.nativeListenersRegistered) return;
+    this.nativeListenersRegistered = true;
+
+    await AudioPlayer.onAudioReady({ audioId: this.nativeAudioId }, async () => {
+      this.nativeReady = true;
+      this.consecutiveFailures = 0;
+      this.isNetworkError = false;
+      const duration = await this.getNativeDuration();
+      if (duration > 0) {
+        this.updateState({ duration });
+      }
+      this.debugLog('Native audio ready', { duration });
+    });
+
+    await AudioPlayer.onAudioEnd({ audioId: this.nativeAudioId }, () => {
+      this.stopProgressTracking();
+      this.updateState({ isPlaying: false, progress: 0, currentTrack: null });
+      const rp = this.audioState.getValue().currentTrack?.r2Path;
+      if (rp) { this.r2AudioService.stopRollingRefresh(rp); }
+      const track = this.audioState.getValue().currentTrack;
+      if (track) {
+        this.analytics.logAudioStop(
+          track.storyId || track.audioUrl || '',
+          track.title || '',
+          this.audioState.getValue().duration || 0
+        );
+      }
+    });
+
+    await AudioPlayer.onPlaybackStatusChange({ audioId: this.nativeAudioId }, (result) => {
+      if (!result || !result.status) {
+        return;
+      }
+      if (result.status === 'playing') {
+        const shouldClearLoading = !this.seekInProgress;
+        this.updateState({
+          isPlaying: true,
+          isLoading: shouldClearLoading ? false : this.audioState.getValue().isLoading,
+          loadingTrackId: shouldClearLoading ? '' : this.audioState.getValue().loadingTrackId,
+        });
+        this.startProgressTracking();
+        const rp = this.audioState.getValue().currentTrack?.r2Path;
+        if (rp) { this.r2AudioService.startRollingRefresh(rp); }
+        this.ambientAudioService.onMainAudioResume();
+      } else if (result.status === 'paused') {
+        this.updateState({ isPlaying: false });
+        this.stopProgressTracking();
+        const rp = this.audioState.getValue().currentTrack?.r2Path;
+        if (rp) { this.r2AudioService.stopRollingRefresh(rp); }
+        this.ambientAudioService.onMainAudioPause();
+      } else if (result.status === 'stopped') {
+        this.updateState({ isPlaying: false, progress: 0 });
+        this.stopProgressTracking();
+        const rp = this.audioState.getValue().currentTrack?.r2Path;
+        if (rp) { this.r2AudioService.stopRollingRefresh(rp); }
+        this.ambientAudioService.onMainAudioPause();
+      }
+    });
+  }
+
+  private async resumeNativePlayback(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+    if (this.seekInProgress) {
+      this.pendingResumeAfterSeek = true;
+      return;
+    }
+    try {
+      await AudioPlayer.play({ audioId: this.nativeAudioId });
+      this.updateState({ isPlaying: true, isLoading: false, loadingTrackId: '', currentTrack: this.lastTrack || this.audioState.getValue().currentTrack });
+      this.startProgressTracking();
+      this.ambientAudioService.onMainAudioResume();
+      const track = this.audioState.getValue().currentTrack;
+      if (track) {
+        this.analytics.logAudioResume(
+          track.storyId || track.audioUrl || '',
+          this.audioState.getValue().currentTime || 0
+        );
+      }
+    } catch (e) {
+      this.handleAudioError('play', e);
+    }
+  }
+
+  private async pauseNativePlayback(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+    if (this.seekInProgress) {
+      this.pendingResumeAfterSeek = false;
+    }
+    try {
+      await AudioPlayer.pause({ audioId: this.nativeAudioId });
+      this.updateState({ isPlaying: false, currentTrack: this.lastTrack || this.audioState.getValue().currentTrack });
+      this.stopProgressTracking();
+      this.ambientAudioService.onMainAudioPause();
+      const rp = this.audioState.getValue().currentTrack?.r2Path;
+      if (rp) { this.r2AudioService.stopRollingRefresh(rp); }
+      const track = this.audioState.getValue().currentTrack;
+      if (track) {
+        this.analytics.logAudioPause(
+          track.storyId || track.audioUrl || '',
+          this.audioState.getValue().currentTime || 0
+        );
+      }
+    } catch (e) {
+      this.handleAudioError('play', e);
+    }
+  }
+
+  private async stopNativePlayback(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+    if (!this.nativeCreated) return;
+    try {
+      await AudioPlayer.stop({ audioId: this.nativeAudioId });
+    } catch {}
+  }
+
+  private async getNativeDuration(): Promise<number> {
+    if (!this.nativeCreated) {
+      return this.audioState.getValue().duration || this.audioState.getValue().currentTrack?.duration || 0;
+    }
+    try {
+      const res = await AudioPlayer.getDuration({ audioId: this.nativeAudioId });
+      const normalized = this.normalizeTime(res?.duration);
+      if (normalized <= 0) {
+        const fallback = this.audioState.getValue().duration || this.audioState.getValue().currentTrack?.duration || 0;
+        if (fallback > 0) {
+          return fallback;
+        }
+      }
+      return normalized;
+    } catch {
+      return this.audioState.getValue().duration || this.audioState.getValue().currentTrack?.duration || 0;
+    }
+  }
+
+  private async getNativeCurrentTime(): Promise<number> {
+    if (!this.nativeCreated) {
+      return this.audioState.getValue().currentTime || 0;
+    }
+    try {
+      const res = await AudioPlayer.getCurrentTime({ audioId: this.nativeAudioId });
+      const raw = res?.currentTime;
+      const normalized = this.normalizeTime(raw);
+      const durationHint = this.audioState.getValue().duration || this.audioState.getValue().currentTrack?.duration || 0;
+      // Some native/plugin versions report currentTime in ms while duration is in seconds.
+      if (durationHint > 0 && normalized > durationHint * 1.2 && normalized > 1000) {
+        return normalized / 1000;
+      }
+      return normalized;
+    } catch {
+      return 0;
+    }
+  }
+
+  private isNativePlayingSync(): boolean {
+    return this.audioState.getValue().isPlaying;
+  }
+
+  private async isNativePlaying(): Promise<boolean> {
+    if (!this.nativeCreated) {
+      return this.audioState.getValue().isPlaying;
+    }
+    try {
+      const res = await AudioPlayer.isPlaying({ audioId: this.nativeAudioId });
+      return !!res?.isPlaying;
+    } catch {
+      return this.audioState.getValue().isPlaying;
+    }
+  }
+
+  private async updateNativeProgress(): Promise<void> {
+    if (this.isProgressUpdating) return;
+    if (this.seekInProgress) return;
+    this.isProgressUpdating = true;
+    try {
+      const isPlaying = await this.isNativePlaying();
+      if (!isPlaying) return;
+      const seek = await this.getNativeCurrentTime();
+      const duration = this.audioState.getValue().duration || (await this.getNativeDuration());
+      const progress = duration > 0 ? seek / duration : 0;
+      const prevTime = this.audioState.getValue().currentTime || 0;
+      this.updateState({ progress: progress, currentTime: seek, duration: duration > 0 ? duration : this.audioState.getValue().duration });
+      if (typeof seek === 'number' && seek > prevTime + 0.05) {
+        this.lastProgressAt = Date.now();
+      }
+      const track = this.audioState.getValue().currentTrack;
+      if (track?.storyId) {
+        this.libraryDataService.updateProgress(track.storyId, progress);
+      }
+    } finally {
+      this.isProgressUpdating = false;
+    }
+  }
+
+  private normalizeTime(value: any): number {
+    if (typeof value !== 'number' || !isFinite(value) || value < 0) return 0;
+    // If value looks like milliseconds, convert to seconds.
+    if (value > 100000) {
+      return Math.floor(value / 1000);
+    }
+    return value;
+  }
+
+  // Public helper for fullscreen player to refresh timing if needed
+  async refreshTiming(): Promise<void> {
+    const duration = await this.getNativeDuration();
+    const currentTime = await this.getNativeCurrentTime();
+    const progress = duration > 0 ? currentTime / duration : 0;
+    this.updateState({ duration: duration > 0 ? duration : this.audioState.getValue().duration, currentTime, progress });
+    this.debugLog('Timing refreshed', { duration, currentTime, progress });
   }
 
   ngOnDestroy() {
