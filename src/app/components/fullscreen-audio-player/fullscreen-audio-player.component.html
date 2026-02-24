@@ -22,6 +22,36 @@
     <div class="audio-info">
       <h1 class="audio-title">{{ title }}</h1>
       <p class="audio-subtitle">{{ description }}</p>
+      <div class="audio-actions">
+        <button
+          class="action-btn favorite-btn"
+          type="button"
+          [class.active]="isFavorite"
+          (click)="toggleFavorite($event)"
+          [disabled]="!storyId && !title"
+        >
+          <ion-icon [name]="isFavorite ? 'heart' : 'heart-outline'"></ion-icon>
+          <span>{{ isFavorite ? 'Saved' : 'Favorite' }}</span>
+        </button>
+        <button
+          class="action-btn download-btn"
+          type="button"
+          [class.in-progress]="downloadStatus === 'queued' || downloadStatus === 'downloading'"
+          [class.done]="downloadStatus === 'downloaded'"
+          (click)="onDownloadClick($event)"
+        >
+          <ion-icon
+            [name]="
+              downloadStatus === 'queued' || downloadStatus === 'downloading'
+                ? 'close-outline'
+                : downloadStatus === 'downloaded'
+                ? 'checkmark-circle-outline'
+                : 'download-outline'
+            "
+          ></ion-icon>
+          <span>{{ getDownloadLabel() }}</span>
+        </button>
+      </div>
       <p class="audio-narrator" *ngIf="narrator">Narrated by {{ narrator }}</p>
     </div>
 
@@ -52,12 +82,17 @@
       </ion-button>
       <div class="play-pause-wrapper">
         <ion-button fill="clear" class="control-btn play-pause" (click)="togglePlay()" [disabled]="isLoading">
-          <ion-icon *ngIf="!isLoading" slot="icon-only" [name]="isPlaying ? 'pause' : 'play'"></ion-icon>
+          <ion-icon
+            *ngIf="!isLoading"
+            slot="icon-only"
+            class="play-pause-icon"
+            [name]="isPlaying ? 'pause' : 'play'"
+          ></ion-icon>
         </ion-button>
         <ion-spinner *ngIf="isLoading" name="crescent" class="btn-overlay-spinner"></ion-spinner>
       </div>
       <ion-button fill="clear" class="control-btn seek-forward" (click)="seekForward()" [disabled]="isLoading">
-        <ion-icon slot="icon-only" name="play-forward"></ion-icon>
+        <ion-icon slot="icon-only" name="play-forward-outline"></ion-icon>
       </ion-button>
     </div>
  

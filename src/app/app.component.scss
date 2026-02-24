@@ -81,3 +81,48 @@ ion-router-outlet.with-footer-and-player {
   }
 }
 
+.force-update-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 24px);
+  background: rgba(7, 6, 20, 0.96);
+}
+
+.force-update-card {
+  width: min(420px, 100%);
+  border-radius: 16px;
+  padding: 22px 18px 18px;
+  background: #171236;
+  border: 1px solid rgba(157, 131, 255, 0.24);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.36);
+  color: #f4f2ff;
+  text-align: center;
+
+  h2 {
+    margin: 0 0 10px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+
+  p {
+    margin: 0 0 16px;
+    color: rgba(244, 242, 255, 0.88);
+    line-height: 1.35;
+    font-size: 14px;
+  }
+
+  ion-button {
+    --background: #7f55ff;
+    --background-activated: #7248f0;
+    --background-hover: #7248f0;
+    --color: #fff;
+    --box-shadow: none;
+    font-weight: 600;
+    margin: 0;
+  }
+}

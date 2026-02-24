@@ -44,10 +44,11 @@ ion-header {
 // Artwork
 .audio-image-container {
   flex-shrink: 0;
-  width: 100%;
-  padding-top: 100%; // Aspect ratio 1:1
+  width: 84%;
+  max-width: 360px;
+  padding-top: 84%; // Slightly smaller than full-width square
   position: relative;
-  margin-bottom: 24px;
+  margin: 0 auto 20px auto;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -87,7 +88,7 @@ ion-header {
 .audio-info {
   flex-shrink: 0;
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 
   .audio-title {
     font-size: 1.5rem;
@@ -100,6 +101,79 @@ ion-header {
     font-size: 1rem;
     color: var(--text-secondary);
     margin: 0;
+  }
+
+  .audio-narrator {
+    margin-top: 10px;
+  }
+
+  .audio-actions {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .action-btn {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+    border-radius: 999px;
+    padding: 10px 14px;
+    min-width: 118px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  .action-btn ion-icon {
+    font-size: 1.1rem;
+  }
+
+  .action-btn:active {
+    transform: scale(0.97);
+  }
+
+  .favorite-btn {
+    border-color: rgba(127, 88, 255, 0.45);
+    color: #b9a8ff;
+  }
+
+  .favorite-btn.active {
+    background: rgba(127, 88, 255, 0.2);
+    border-color: rgba(127, 88, 255, 0.75);
+    color: #d5cbff;
+  }
+
+  .favorite-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .download-btn {
+    border-color: rgba(255, 255, 255, 0.24);
+    color: #f0eeff;
+    min-width: 150px;
+  }
+
+  .download-btn.in-progress {
+    border-color: rgba(255, 165, 0, 0.55);
+    color: #ffd69b;
+    background: rgba(255, 165, 0, 0.12);
+  }
+
+  .download-btn.done {
+    border-color: rgba(46, 212, 136, 0.55);
+    color: #adf5d2;
+    background: rgba(46, 212, 136, 0.12);
   }
 }
 
@@ -141,6 +215,13 @@ ion-header {
     --color: var(--text-primary);
     font-size: 1.8rem;
 
+    &.seek-backward ion-icon,
+    &.seek-forward ion-icon {
+      font-size: 2rem;
+      width: 2rem;
+      height: 2rem;
+    }
+
     &.play-pause {
       background: #6e57ff;
       color: var(--text-primary);
@@ -155,6 +236,7 @@ ion-header {
       display: flex;
       align-items: center;
       justify-content: center;
+      position: relative;
       padding: 0;
       --border-radius: 50%;
       --padding-top: 0;
@@ -173,6 +255,17 @@ ion-header {
         --color: #ffffff;
         width: 28px;
         height: 28px;
+      }
+
+      ion-icon.play-pause-icon {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 2rem;
+        height: 2rem;
+        font-size: 2rem;
+        line-height: 1;
       }
     }
 
@@ -328,4 +421,3 @@ ion-header {
     transform: rotate(360deg);
   }
 }
-

@@ -7,6 +7,8 @@ import { LibraryDataService } from './library-data.service';
 import { AudioPlayer } from '@mediagrid/capacitor-native-audio';
 import { Capacitor } from '@capacitor/core';
 import { AnalyticsService } from './analytics.service';
+import { OfflineDownloadManagerService } from './offline-download-manager.service';
+import { ConnectivityService } from './connectivity.service';
 
 export interface AudioState {
   isPlaying: boolean;
@@ -89,12 +91,18 @@ export class GlobalAudioPlayerService {
   private seekInProgress = false;
   private pendingResumeAfterSeek: boolean | null = null;
   private readonly debugAudioSync = false;
+  private offlineAudio: HTMLAudioElement | null = null;
+  private offlineObjectUrl: string | null = null;
+  private isOfflinePlayback = false;
+  private offlineStoryId = '';
 
   constructor(
     private r2AudioService: R2AudioService,
     private ambientAudioService: AmbientAudioService,
     private libraryDataService: LibraryDataService,
-    private analytics: AnalyticsService
+    private analytics: AnalyticsService,
+    private offlineDownloadManager: OfflineDownloadManagerService,
+    private connectivity: ConnectivityService
   ) {
     this.setupNetworkMonitoring();
     this.setupAndroidAudioSession();
@@ -108,6 +116,14 @@ export class GlobalAudioPlayerService {
 
   playAudioFromAnyPage(request: PlayRequest): Promise<boolean> {
     return new Promise((resolve) => {
+      const hasOfflineCopy = !!request.storyId && this.isStoryDownloadedOffline(request.storyId);
+      if (!this.connectivity.isOnline && !hasOfflineCopy) {
+        this.updateState({ isPlaying: false, isLoading: false, loadingTrackId: '' });
+        this.connectivity.notifyOfflineAction();
+        resolve(false);
+        return;
+      }
+
       const requestId = `play_${request.storyId}_${Date.now()}`;
       this.setLoading(true, request.storyId);
       this.isProcessingRequest = true;
@@ -123,30 +139,58 @@ export class GlobalAudioPlayerService {
       this.updateTrackImmediately(request);
 
       const myPlayToken = ++this.playToken;
-      this.currentPlaySub = this.r2AudioService.getAudioUrlWithAutoRefresh(request.r2Path).pipe(
-        finalize(() => {
-          this.isProcessingRequest = false;
-          this.currentRequestId = '';
-        })
-      ).subscribe({
-        next: (audioUrl) => {
-          if (myPlayToken !== this.playToken) { resolve(false); return; }
-          // Warm initial bytes and metadata for faster start
-          if (request.r2Path) {
-            this.r2AudioService.prefetchStartChunk(request.r2Path).subscribe();
-            this.r2AudioService.preloadAudioMetadata(request.r2Path).subscribe({ next: () => {}, error: () => {} });
+
+      const startStreamingPlayback = () => {
+        this.isOfflinePlayback = false;
+        this.currentPlaySub = this.r2AudioService.getAudioUrlWithAutoRefresh(request.r2Path).pipe(
+          finalize(() => {
+            this.isProcessingRequest = false;
+            this.currentRequestId = '';
+          })
+        ).subscribe({
+          next: (audioUrl) => {
+            if (myPlayToken !== this.playToken) { resolve(false); return; }
+            // Warm initial bytes and metadata for faster start
+            if (request.r2Path) {
+              this.r2AudioService.prefetchStartChunk(request.r2Path).subscribe();
+              this.r2AudioService.preloadAudioMetadata(request.r2Path).subscribe({ next: () => {}, error: () => {} });
+            }
+            this.lastPlayStartAt = Date.now();
+            this.startNativePlayback(audioUrl, request, myPlayToken)
+              .then(() => resolve(true))
+              .catch(() => resolve(false));
+          },
+          error: (err) => {
+            this.handleNetworkError(request.storyId, err.message);
+            this.setLoading(false, request.storyId);
+            resolve(false);
           }
-          this.lastPlayStartAt = Date.now();
-          this.startNativePlayback(audioUrl, request, myPlayToken)
-            .then(() => resolve(true))
-            .catch(() => resolve(false));
-        },
-        error: (err) => {
-          this.handleNetworkError(request.storyId, err.message);
-          this.setLoading(false, request.storyId);
-          resolve(false);
-        }
-      });
+        });
+      };
+
+      this.tryStartOfflinePlayback(request, myPlayToken)
+        .then((startedOffline) => {
+          if (myPlayToken !== this.playToken) {
+            resolve(false);
+            return;
+          }
+
+          if (startedOffline) {
+            this.isProcessingRequest = false;
+            this.currentRequestId = '';
+            resolve(true);
+            return;
+          }
+
+          startStreamingPlayback();
+        })
+        .catch(() => {
+          if (myPlayToken !== this.playToken) {
+            resolve(false);
+            return;
+          }
+          startStreamingPlayback();
+        });
     });
   }
 
@@ -172,11 +216,28 @@ export class GlobalAudioPlayerService {
     console.log(`🎯 [AUDIO_SYNC] ${message}`, data);
   }
 
-  play() {
+  async play() {
+    if (this.isOfflinePlayback) {
+      await this.resumeOfflinePlayback();
+      return;
+    }
+
+    const currentTrack = this.audioState.getValue().currentTrack;
+    const hasOfflineCopy = !!currentTrack?.storyId && this.isStoryDownloadedOffline(currentTrack.storyId);
+    if (!this.connectivity.isOnline && !hasOfflineCopy) {
+      this.updateState({ isPlaying: false, isLoading: false, loadingTrackId: '' });
+      this.connectivity.notifyOfflineAction();
+      return;
+    }
+
     this.resumeNativePlayback();
   }
 
   pause() {
+    if (this.isOfflinePlayback) {
+      this.pauseOfflinePlayback();
+      return;
+    }
     this.pauseNativePlayback();
   }
 
@@ -198,6 +259,11 @@ export class GlobalAudioPlayerService {
   async seekTo(time: number): Promise<void> {
     console.warn(`🎯 [AUDIO_SYNC] seekTo called time=${time} lock=${this.seekLock} inProgress=${this.seekInProgress}`);
     if (typeof time !== 'number') {
+      return;
+    }
+
+    if (this.isOfflinePlayback) {
+      await this.performOfflineSeek(time);
       return;
     }
 
@@ -479,17 +545,294 @@ export class GlobalAudioPlayerService {
     });
   }
 
+  private async tryStartOfflinePlayback(request: PlayRequest, token: number): Promise<boolean> {
+    const source = await this.offlineDownloadManager.getOfflinePlaybackSource(request.storyId, request.title);
+    if (!source) {
+      return false;
+    }
+
+    if (token !== this.playToken) {
+      return false;
+    }
+
+    const offlineUrl = URL.createObjectURL(source.blob);
+    await this.startOfflinePlayback(offlineUrl, request, token, source.record.durationSeconds);
+    return true;
+  }
+
+  private async startOfflinePlayback(
+    offlineUrl: string,
+    request: PlayRequest,
+    token: number,
+    durationHintSeconds?: number
+  ): Promise<void> {
+    this.stopOfflinePlayback();
+
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.src = offlineUrl;
+
+    this.isOfflinePlayback = true;
+    this.offlineAudio = audio;
+    this.offlineObjectUrl = offlineUrl;
+    this.offlineStoryId = request.storyId || '';
+    this.nativeReady = true;
+
+    const requestedResume = Number(request.resumePosition || 0);
+    const applyResumePosition = () => {
+      if (!(requestedResume > 0)) {
+        return;
+      }
+      const safeDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+      const target = safeDuration > 0 ? Math.min(requestedResume, Math.max(0, safeDuration - 0.5)) : requestedResume;
+      try {
+        audio.currentTime = Math.max(0, target);
+      } catch {
+        // Ignore invalid resume edge cases on older webviews.
+      }
+    };
+
+    audio.onloadedmetadata = () => {
+      if (token !== this.playToken || this.offlineAudio !== audio) {
+        return;
+      }
+      const duration = Number(audio.duration);
+      if (Number.isFinite(duration) && duration > 0) {
+        this.updateState({ duration });
+      }
+      applyResumePosition();
+    };
+
+    audio.ontimeupdate = () => {
+      if (token !== this.playToken || this.offlineAudio !== audio) {
+        return;
+      }
+      const currentTime = Number(audio.currentTime) || 0;
+      const duration = this.getOfflineDuration();
+      const progress = duration > 0 ? Math.max(0, Math.min(1, currentTime / duration)) : 0;
+      this.updateState({ currentTime, progress, duration: duration > 0 ? duration : this.audioState.getValue().duration });
+
+      const track = this.audioState.getValue().currentTrack;
+      if (track?.storyId) {
+        this.libraryDataService.updateProgress(track.storyId, progress);
+      }
+    };
+
+    audio.onended = () => {
+      if (token !== this.playToken || this.offlineAudio !== audio) {
+        return;
+      }
+      const track = this.audioState.getValue().currentTrack;
+      if (track) {
+        this.analytics.logAudioStop(
+          track.storyId || track.audioUrl || '',
+          track.title || '',
+          this.audioState.getValue().duration || 0
+        );
+      }
+      this.updateState({ isPlaying: false, progress: 0, currentTime: 0, currentTrack: null });
+      this.ambientAudioService.onMainAudioPause();
+    };
+
+    audio.onpause = () => {
+      if (token !== this.playToken || this.offlineAudio !== audio) {
+        return;
+      }
+      if (!audio.ended) {
+        this.updateState({ isPlaying: false });
+        this.ambientAudioService.onMainAudioPause();
+      }
+    };
+
+    audio.onplay = () => {
+      if (token !== this.playToken || this.offlineAudio !== audio) {
+        return;
+      }
+      this.updateState({ isPlaying: true, isLoading: false, loadingTrackId: '' });
+      this.ambientAudioService.onMainAudioResume();
+    };
+
+    audio.onerror = () => {
+      if (token !== this.playToken || this.offlineAudio !== audio) {
+        return;
+      }
+      const error = new Error('Offline playback failed.');
+      this.handleAudioError('play', error);
+      this.setLoading(false, request.storyId || this.offlineStoryId);
+    };
+
+    if (durationHintSeconds && durationHintSeconds > 0) {
+      this.updateState({ duration: durationHintSeconds });
+    }
+
+    this.lastPlayStartAt = Date.now();
+    this.persistLibraryEntry(request);
+
+    try {
+      applyResumePosition();
+      await audio.play();
+    } catch (error) {
+      this.stopOfflinePlayback();
+      throw error;
+    }
+
+    if (token !== this.playToken || this.offlineAudio !== audio) {
+      this.stopOfflinePlayback();
+      return;
+    }
+
+    this.logStartupLatency();
+    this.updateState({
+      isPlaying: true,
+      isLoading: false,
+      loadingTrackId: '',
+      currentTrack: this.lastTrack || this.audioState.getValue().currentTrack,
+    });
+    this.ambientAudioService.onMainAudioPlay();
+
+    const track = this.audioState.getValue().currentTrack;
+    if (track) {
+      this.analytics.logAudioPlay(
+        track.storyId || track.audioUrl || '',
+        track.title || '',
+        this.audioState.getValue().duration || 0
+      );
+    }
+  }
+
+  private stopOfflinePlayback(): void {
+    if (this.offlineAudio) {
+      this.offlineAudio.onloadedmetadata = null;
+      this.offlineAudio.ontimeupdate = null;
+      this.offlineAudio.onended = null;
+      this.offlineAudio.onpause = null;
+      this.offlineAudio.onplay = null;
+      this.offlineAudio.onerror = null;
+
+      try {
+        this.offlineAudio.pause();
+      } catch {}
+
+      this.offlineAudio.removeAttribute('src');
+      try {
+        this.offlineAudio.load();
+      } catch {}
+      this.offlineAudio = null;
+    }
+
+    if (this.offlineObjectUrl) {
+      URL.revokeObjectURL(this.offlineObjectUrl);
+      this.offlineObjectUrl = null;
+    }
+
+    this.isOfflinePlayback = false;
+    this.offlineStoryId = '';
+  }
+
+  private getOfflineDuration(): number {
+    if (!this.offlineAudio) {
+      return this.audioState.getValue().duration || 0;
+    }
+
+    const duration = Number(this.offlineAudio.duration);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return this.audioState.getValue().duration || 0;
+    }
+    return duration;
+  }
+
+  private async resumeOfflinePlayback(): Promise<void> {
+    if (!this.offlineAudio) {
+      return;
+    }
+
+    try {
+      await this.offlineAudio.play();
+      this.updateState({ isPlaying: true, isLoading: false, loadingTrackId: '' });
+      this.ambientAudioService.onMainAudioResume();
+
+      const track = this.audioState.getValue().currentTrack;
+      if (track) {
+        this.analytics.logAudioResume(
+          track.storyId || track.audioUrl || '',
+          this.audioState.getValue().currentTime || 0
+        );
+      }
+    } catch (e) {
+      this.handleAudioError('play', e);
+    }
+  }
+
+  private pauseOfflinePlayback(): void {
+    if (!this.offlineAudio) {
+      return;
+    }
+
+    try {
+      this.offlineAudio.pause();
+      this.updateState({ isPlaying: false });
+      this.ambientAudioService.onMainAudioPause();
+
+      const track = this.audioState.getValue().currentTrack;
+      if (track) {
+        this.analytics.logAudioPause(
+          track.storyId || track.audioUrl || '',
+          this.audioState.getValue().currentTime || 0
+        );
+      }
+    } catch (e) {
+      this.handleAudioError('play', e);
+    }
+  }
+
+  private async performOfflineSeek(time: number): Promise<void> {
+    if (!this.offlineAudio || typeof time !== 'number') {
+      return;
+    }
+
+    const duration = this.getOfflineDuration();
+    const seekTime = duration > 0 ? Math.max(0, Math.min(time, duration)) : Math.max(0, time);
+    const trackId = this.audioState.getValue().currentTrack?.storyId || this.offlineStoryId || '';
+
+    this.seekLock = true;
+    this.seekInProgress = true;
+    if (trackId) {
+      this.setLoading(true, trackId);
+    }
+    this.ambientAudioService.onMainAudioSeek();
+
+    try {
+      this.offlineAudio.currentTime = seekTime;
+      this.updateState({
+        currentTime: seekTime,
+        progress: duration > 0 ? seekTime / duration : 0,
+        duration: duration > 0 ? duration : this.audioState.getValue().duration,
+      });
+    } finally {
+      if (trackId) {
+        this.setLoading(false, trackId);
+      }
+      this.seekLock = false;
+      this.seekInProgress = false;
+      this.ambientAudioService.onMainAudioSeekComplete();
+    }
+  }
+
   private updateState(newState: Partial<AudioState>) {
     this.audioState.next({ ...this.audioState.getValue(), ...newState });
   }
 
   private stopCurrentAudio() {
     this.cancelActiveSeek();
+    this.stopOfflinePlayback();
     this.stopNativePlayback();
     this.stopProgressTracking();
   }
 
   private startProgressTracking() {
+    if (this.isOfflinePlayback) {
+      return;
+    }
     this.stopProgressTracking();
     this.progressInterval = setInterval(() => {
       this.updateNativeProgress();
@@ -506,6 +849,9 @@ export class GlobalAudioPlayerService {
   }
 
   private startStallWatch() {
+    if (this.isOfflinePlayback) {
+      return;
+    }
     this.stopStallWatch();
     this.lastProgressAt = Date.now();
     this.stallWatchInterval = setInterval(() => {
@@ -529,7 +875,7 @@ export class GlobalAudioPlayerService {
   }
 
   private recoverFromStall() {
-    if (!this.nativeReady) return;
+    if (!this.nativeReady || this.isOfflinePlayback) return;
     const pos = this.audioState.getValue().currentTime || 0;
     const dur = this.audioState.getValue().duration || 0;
     const r2Path = this.audioState.getValue().currentTrack?.r2Path || '';
@@ -617,6 +963,11 @@ export class GlobalAudioPlayerService {
 
   private setupNetworkMonitoring() {}
 
+  private isStoryDownloadedOffline(storyId: string): boolean {
+    const record = this.offlineDownloadManager.getDownloadByStoryId(storyId);
+    return !!record && record.status === 'downloaded';
+  }
+
   private resumeFromNotification() {
     this.play();
   }
@@ -643,6 +994,13 @@ export class GlobalAudioPlayerService {
   private async startNativePlayback(audioUrl: string, request: PlayRequest, token: number): Promise<void> {
     if (!Capacitor.isNativePlatform()) {
       throw new Error('Native playback requires native platform');
+    }
+
+    this.isOfflinePlayback = false;
+    this.offlineStoryId = '';
+    if (this.offlineObjectUrl) {
+      URL.revokeObjectURL(this.offlineObjectUrl);
+      this.offlineObjectUrl = null;
     }
 
     const metadata = {
@@ -824,6 +1182,9 @@ export class GlobalAudioPlayerService {
   }
 
   private async getNativeDuration(): Promise<number> {
+    if (this.isOfflinePlayback) {
+      return this.getOfflineDuration();
+    }
     if (!this.nativeCreated) {
       return this.audioState.getValue().duration || this.audioState.getValue().currentTrack?.duration || 0;
     }
@@ -843,6 +1204,9 @@ export class GlobalAudioPlayerService {
   }
 
   private async getNativeCurrentTime(): Promise<number> {
+    if (this.isOfflinePlayback) {
+      return this.offlineAudio ? Number(this.offlineAudio.currentTime || 0) : (this.audioState.getValue().currentTime || 0);
+    }
     if (!this.nativeCreated) {
       return this.audioState.getValue().currentTime || 0;
     }
@@ -862,10 +1226,16 @@ export class GlobalAudioPlayerService {
   }
 
   private isNativePlayingSync(): boolean {
+    if (this.isOfflinePlayback && this.offlineAudio) {
+      return !this.offlineAudio.paused && !this.offlineAudio.ended;
+    }
     return this.audioState.getValue().isPlaying;
   }
 
   private async isNativePlaying(): Promise<boolean> {
+    if (this.isOfflinePlayback && this.offlineAudio) {
+      return !this.offlineAudio.paused && !this.offlineAudio.ended;
+    }
     if (!this.nativeCreated) {
       return this.audioState.getValue().isPlaying;
     }
@@ -878,6 +1248,9 @@ export class GlobalAudioPlayerService {
   }
 
   private async updateNativeProgress(): Promise<void> {
+    if (this.isOfflinePlayback) {
+      return;
+    }
     if (this.isProgressUpdating) return;
     if (this.seekInProgress) return;
     this.isProgressUpdating = true;
@@ -912,6 +1285,14 @@ export class GlobalAudioPlayerService {
 
   // Public helper for fullscreen player to refresh timing if needed
   async refreshTiming(): Promise<void> {
+    if (this.isOfflinePlayback) {
+      const duration = this.getOfflineDuration();
+      const currentTime = this.offlineAudio ? Number(this.offlineAudio.currentTime || 0) : (this.audioState.getValue().currentTime || 0);
+      const progress = duration > 0 ? currentTime / duration : 0;
+      this.updateState({ duration: duration > 0 ? duration : this.audioState.getValue().duration, currentTime, progress });
+      return;
+    }
+
     const duration = await this.getNativeDuration();
     const currentTime = await this.getNativeCurrentTime();
     const progress = duration > 0 ? currentTime / duration : 0;

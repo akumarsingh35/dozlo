@@ -10,6 +10,7 @@ import { environment } from '../../environments/environment';
 export class AuthService {
   private userSubject = new BehaviorSubject<User | null>(null);
   user$: Observable<User | null> = this.userSubject.asObservable();
+  private googleSignInInFlight: Promise<void> | null = null;
 
   constructor(
     private auth: Auth,
@@ -138,16 +139,77 @@ export class AuthService {
     return Math.abs(hash).toString(16);
   }
 
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private extractErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message ?? '';
+    }
+    return String(error ?? '');
+  }
+
+  private isNoCredentialError(error: unknown): boolean {
+    const normalized = this.extractErrorMessage(error).toLowerCase();
+    return (
+      normalized.includes('no credential') ||
+      normalized.includes('nocredential') ||
+      normalized.includes('no credentials found') ||
+      normalized.includes('getcredential') ||
+      normalized.includes('credential manager') ||
+      normalized.includes('no matching credential')
+    );
+  }
+
+  /**
+   * On some Android OEM/device combos, Credential Manager can return
+   * "No credentials found" even when Google Sign-In is otherwise possible.
+   * We retry once via legacy GoogleSignInClient for compatibility.
+   */
+  private async signInWithGoogleNativeWithFallback() {
+    try {
+      return await FirebaseAuthentication.signInWithGoogle({
+        useCredentialManager: true,
+        scopes: ['email', 'profile']
+      });
+    } catch (error) {
+      if (!this.isNoCredentialError(error)) {
+        throw error;
+      }
+
+      this.log('Credential Manager failed, retrying GoogleSignInClient fallback.', error);
+      await this.sleep(250);
+      return await FirebaseAuthentication.signInWithGoogle({
+        useCredentialManager: false,
+        scopes: ['email', 'profile']
+      });
+    }
+  }
+
   async signInWithGoogle() {
+    if (this.googleSignInInFlight) {
+      return this.googleSignInInFlight;
+    }
+
+    this.googleSignInInFlight = this.performGoogleSignIn();
+    try {
+      await this.googleSignInInFlight;
+    } finally {
+      this.googleSignInInFlight = null;
+    }
+  }
+
+  private async performGoogleSignIn() {
     if (!this.platform.is('capacitor')) {
       throw new Error('Google sign-in is only supported on Android in this app.');
     }
     
     try {
-      // Use the official Capacitor Firebase Authentication plugin
-      const result = await FirebaseAuthentication.signInWithGoogle();
+      // Use native Google Sign-In with fallback for broader device compatibility.
+      const result = await this.signInWithGoogleNativeWithFallback();
       
-      if (result.user && result.credential) {
+      if (result.user) {
         
         // Convert and update the user state immediately
         const angularUser = this.convertCapacitorUserToAngularUser(result.user);
@@ -167,21 +229,39 @@ export class AuthService {
         console.error('Error object:', JSON.stringify(error, null, 2));
       }
       
-      // Provide more specific error messages
-      if (error instanceof Error) {
-        const errorMessage = error.message.toLowerCase();
-        if (errorMessage.includes('network')) {
-          throw new Error('Network error. Please check your internet connection.');
-        } else if (errorMessage.includes('cancelled')) {
-          throw new Error('Sign-in was cancelled.');
-        } else if (errorMessage.includes('developer')) {
-          throw new Error('Sign-in configuration error. Please contact support.');
-        } else if (errorMessage.includes('something went wrong')) {
-          throw new Error('Google Sign-In service error. Please try again later.');
-        }
+      const rawError = this.extractErrorMessage(error);
+      const normalized = rawError.toLowerCase();
+      const errorCode = (error as any)?.code ?? '';
+
+      // Common Android Google Sign-In config failures:
+      // 10 / DEVELOPER_ERROR, 12500 / sign_in_failed (OAuth / SHA / package config issue)
+      if (
+        normalized.includes('developer') ||
+        normalized.includes('error 10') ||
+        normalized.includes('status code 10') ||
+        normalized.includes('12500') ||
+        String(errorCode).includes('10') ||
+        String(errorCode).includes('12500')
+      ) {
+        throw new Error(
+          'Google Sign-In is not configured correctly for this app build. Please verify google-services.json and SHA fingerprints in Firebase.'
+        );
       }
-      
-      throw new Error(`Sign-in failed: ${error}`);
+
+      if (normalized.includes('network')) {
+        throw new Error('Network error. Please check your internet connection.');
+      }
+      if (this.isNoCredentialError(error)) {
+        throw new Error('No eligible Google account was found on this device. Please verify Google Play Services and try another account.');
+      }
+      if (normalized.includes('cancelled') || normalized.includes('12501')) {
+        throw new Error('Sign-in was cancelled.');
+      }
+      if (normalized.includes('something went wrong')) {
+        throw new Error('Google Sign-In service error. Please try again later.');
+      }
+
+      throw new Error(`Sign-in failed: ${rawError}`);
     }
   }
 

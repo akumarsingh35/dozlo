@@ -1,5 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { IonicModule, NavController } from '@ionic/angular';
+import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { IonicModule, IonContent } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -15,11 +15,11 @@ import { Subject } from 'rxjs';
   imports: [IonicModule, CommonModule]
 })
 export class TermsOfUsePage implements OnInit {
-  private navCtrl = inject(NavController);
   private route = inject(ActivatedRoute);
   private sanitizer = inject(DomSanitizer);
   private firebaseDataService = inject(FirebaseDataService);
   private destroy$ = new Subject<void>();
+  @ViewChild(IonContent, { static: false }) content?: IonContent;
   
   backHref = '/sign-in';
   termsOfUseData: SafeHtml = '';
@@ -29,6 +29,14 @@ export class TermsOfUsePage implements OnInit {
 
   constructor() { 
     console.log('Terms of Use page constructor called');
+  }
+
+  async ionViewDidEnter() {
+    // Ensure the legal page starts from top and no hidden-page element keeps focus.
+    (document.activeElement as HTMLElement | null)?.blur();
+    if (this.content) {
+      await this.content.scrollToTop(0);
+    }
   }
 
   ngOnInit() {

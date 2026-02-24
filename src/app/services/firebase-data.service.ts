@@ -1,5 +1,5 @@
-import { Injectable } from '@angular/core';
-import { Firestore, collection, getDocs, doc, getDoc, query, orderBy, limit, where } from '@angular/fire/firestore';
+import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
+import { Firestore, collection, getDocs, query, orderBy, limit, where } from '@angular/fire/firestore';
 import { Observable, from, map, catchError, of, BehaviorSubject } from 'rxjs';
 
 export interface FirebaseCategory {
@@ -252,11 +252,22 @@ export class FirebaseDataService {
   public categories$ = this.categoriesSubject.asObservable();
   public stories$ = this.storiesSubject.asObservable();
 
-  constructor(private firestore: Firestore) {
+  constructor(
+    private firestore: Firestore,
+    private environmentInjector: EnvironmentInjector
+  ) {
     // Defer initialization to avoid Firebase warning
     setTimeout(() => {
       this.loadGlobalData();
     }, 0);
+  }
+
+  /**
+   * AngularFire Firestore helpers should run inside an Angular injection context.
+   * This avoids "called outside injection context" warnings and keeps zone behavior stable.
+   */
+  private async getDocsInContext(ref: any): Promise<any> {
+    return runInInjectionContext(this.environmentInjector, () => getDocs(ref));
   }
 
   /**
@@ -372,13 +383,13 @@ export class FirebaseDataService {
       // Fetch categories first
       const categoriesRef = collection(this.firestore, 'dozlo_categories');
       console.log('📚 Fetching categories from dozlo_categories collection...');
-      const categoriesSnapshot = await getDocs(categoriesRef);
+      const categoriesSnapshot = await this.getDocsInContext(categoriesRef);
       console.log('📚 Categories snapshot size:', categoriesSnapshot.size);
       
       // Fetch all stories first
       const storiesRef = collection(this.firestore, 'dozlo_stories');
       console.log('📚 Fetching all stories from dozlo_stories...');
-      const storiesSnapshot = await getDocs(storiesRef);
+      const storiesSnapshot = await this.getDocsInContext(storiesRef);
       console.log('📚 Stories snapshot size:', storiesSnapshot.size);
       
       // Create a map of story IDs to story objects for quick lookup
@@ -495,7 +506,7 @@ export class FirebaseDataService {
   private async fetchStoryById(storyId: string): Promise<FirebaseStory | null> {
     try {
       const storiesRef = collection(this.firestore, 'dozlo_stories');
-      const storiesSnapshot = await getDocs(storiesRef);
+      const storiesSnapshot = await this.getDocsInContext(storiesRef);
       
       for (const storyDoc of storiesSnapshot.docs) {
         const storyData = storyDoc.data() as any;
@@ -537,7 +548,7 @@ export class FirebaseDataService {
   private async fetchStoriesByCategory(categoryId: string): Promise<FirebaseStory[]> {
     try {
       const storiesRef = collection(this.firestore, 'dozlo_stories');
-      const storiesSnapshot = await getDocs(storiesRef);
+      const storiesSnapshot = await this.getDocsInContext(storiesRef);
       const stories: FirebaseStory[] = [];
 
       for (const storyDoc of storiesSnapshot.docs) {
@@ -580,7 +591,7 @@ export class FirebaseDataService {
     try {
       console.log('🔍 DEBUG: Starting story data analysis...');
       const storiesRef = collection(this.firestore, 'dozlo_stories');
-      const storiesSnapshot = await getDocs(storiesRef);
+      const storiesSnapshot = await this.getDocsInContext(storiesRef);
       
       console.log('🔍 DEBUG: Total story documents found:', storiesSnapshot.size);
       
@@ -653,7 +664,7 @@ export class FirebaseDataService {
         limit(1)
       );
       
-      const privacySnapshot = await getDocs(privacyQuery);
+      const privacySnapshot = await this.getDocsInContext(privacyQuery);
       
       if (privacySnapshot.empty) {
         console.log('🔒 No active privacy policy found');
@@ -690,7 +701,7 @@ export class FirebaseDataService {
         limit(1)
       );
       
-      const termsSnapshot = await getDocs(termsQuery);
+      const termsSnapshot = await this.getDocsInContext(termsQuery);
       
       if (termsSnapshot.empty) {
         console.log('🔒 No active terms of use found');
@@ -728,7 +739,7 @@ export class FirebaseDataService {
         limit(1)
       );
       
-      const legalSnapshot = await getDocs(legalQuery);
+      const legalSnapshot = await this.getDocsInContext(legalQuery);
       
       if (legalSnapshot.empty) {
         console.log(`🔒 No active ${type} found`);
@@ -839,7 +850,7 @@ export class FirebaseDataService {
       const aboutsRef = collection(this.firestore, 'dozlo_abouts');
       
       // Get the main content document
-      const aboutsSnapshot = await getDocs(aboutsRef);
+      const aboutsSnapshot = await this.getDocsInContext(aboutsRef);
       
       if (aboutsSnapshot.empty) {
         console.log('📱 No app content found in dozlo_abouts collection');
@@ -953,7 +964,7 @@ export class FirebaseDataService {
     try {
       console.log('🔍 Fetching explore categories...');
       const categoriesRef = collection(this.firestore, 'explore_categories');
-      const categoriesSnapshot = await getDocs(categoriesRef);
+      const categoriesSnapshot = await this.getDocsInContext(categoriesRef);
       const categories: ExploreCategory[] = [];
 
       console.log('🔍 Total documents found:', categoriesSnapshot.size);

@@ -1,28 +1,36 @@
-<ion-header>
+<ion-header [translucent]="false">
   <ion-toolbar class="home-toolbar">
-    <div class="home-title">Dozlo</div>
+    <ion-title class="home-title">Dozlo</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content
   #contentContainer
-  [scrollY]="imagesLoaded || currentSections.length > 0"
-  [class.home-scroll-ready]="imagesLoaded || currentSections.length > 0"
+  [scrollY]="!isInitialDataLoading"
+  [class.home-scroll-ready]="!isInitialDataLoading"
 >
   <!-- Loading Spinner -->
-  <div *ngIf="!imagesLoaded && !currentSections.length" class="loading-container">
+  <div *ngIf="isInitialDataLoading" class="loading-container">
     <ion-spinner name="crescent"></ion-spinner>
     <p>Loading stories...</p>
   </div>
 
-  <div *ngIf="imagesLoaded || currentSections.length > 0">
+  <div *ngIf="!isInitialDataLoading">
     <div class="unlock-banner" *ngIf="showLoginBanner">
       <div class="banner-text">
         <h2>Unlock all stories</h2>
         <p>Sign in to access exclusive content</p>
       </div>
       <div class="banner-action">
-        <ion-button expand="block" fill="clear" class="login-signup-button" (click)="onSignIn()">Login/Signup</ion-button>
+        <ion-button
+          expand="block"
+          fill="solid"
+          class="login-signup-button"
+          [disabled]="isNavigatingToSignIn"
+          (click)="onSignIn()"
+        >
+          Login/Signup
+        </ion-button>
       </div>
     </div>
 
@@ -265,10 +273,32 @@
       </div>
     </div>
 
-    <!-- No Sections Message -->
-    <div *ngIf="currentSections.length === 0 && !isCategoryLoading" class="no-sections">
-      <p>No sections found for the selected category.</p>
-      <p>Please try refreshing the page or selecting a different category.</p>
+    <!-- No Sections / Offline Empty State -->
+    <div *ngIf="shouldShowEmptyState()" class="no-sections no-sections-state">
+      <ion-icon [name]="networkError ? 'cloud-offline-outline' : 'alert-circle-outline'" class="empty-state-icon"></ion-icon>
+      <h3>{{ getEmptyStateTitle() }}</h3>
+      <p>{{ getEmptyStatePrimaryMessage() }}</p>
+      <p class="subtext">{{ getEmptyStateSecondaryMessage() }}</p>
+      <div class="empty-state-actions">
+        <ion-button
+          fill="solid"
+          size="small"
+          class="open-library-btn"
+          *ngIf="networkError"
+          (click)="openLibraryDownloads()"
+        >
+          Open Library
+        </ion-button>
+        <ion-button
+          fill="outline"
+          color="light"
+          size="small"
+          (click)="retryLoad()"
+          [disabled]="isRetrying"
+        >
+          {{ isRetrying ? 'Retrying...' : 'Retry' }}
+        </ion-button>
+      </div>
     </div>
     
     <div class="footer-spacer"></div>

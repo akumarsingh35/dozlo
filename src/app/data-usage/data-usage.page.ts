@@ -14,10 +14,11 @@ import { Subject } from 'rxjs';
   imports: [IonicModule, CommonModule]
 })
 export class DataUsagePage implements OnInit {
-  private navCtrl = inject(NavController);
   private route = inject(ActivatedRoute);
+  private navController = inject(NavController);
   private firebaseDataService = inject(FirebaseDataService);
   private destroy$ = new Subject<void>();
+  private isNavigating = false;
   
   backHref = '/sign-in';
   isLoading = true;
@@ -87,10 +88,23 @@ export class DataUsagePage implements OnInit {
       });
   }
 
-  navigateToPrivacyPolicy() {
-    this.navCtrl.navigateForward(['/privacy-policy'], { 
-      queryParams: { from: 'data-usage' }, 
-      animated: false 
-    });
+  async navigateToPrivacyPolicy() {
+    if (this.isNavigating) {
+      return;
+    }
+
+    this.isNavigating = true;
+    try {
+      await this.navController.navigateForward(['/privacy-policy'], {
+        animated: false,
+        queryParams: { from: 'data-usage' },
+      });
+    } catch (error) {
+      console.error('Navigation failed for /privacy-policy:', error);
+    } finally {
+      setTimeout(() => {
+        this.isNavigating = false;
+      }, 150);
+    }
   }
 }

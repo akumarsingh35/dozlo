@@ -10,10 +10,10 @@
   padding-bottom: 15px;
   border-bottom: 1px solid #3c3958;
   position: sticky;
-  top: -1px;
+  top: 0;
   z-index: 100;
   background: #1a1a2e; // Match the page background
-  margin-top: -1px; // Eliminate gap between header and category-scroller
+  margin-top: 0;
   transform: translateZ(0); // Force hardware acceleration to prevent shaking
   will-change: transform; // Optimize for animations
 
@@ -74,9 +74,17 @@
   }
 
   .see-all {
-    color: #a299f9;
-    font-size: 13px;
+    --color: #a299f9;
+    margin: 0;
     text-decoration: none;
+
+    &::part(native) {
+      color: #a299f9;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0;
+      text-transform: none;
+    }
   }
 
   &.centered-header {
@@ -281,15 +289,23 @@
   }
 
   .login-signup-button {
-    background-color: white;
-    color: #5c4b99;
-    border: none;
-    padding: 0px 10px;
-    border-radius: 30px;
-    font-weight: bold;
+    --background: #ffffff;
+    --background-hover: #ffffff;
+    --background-activated: #ffffff;
+    --color: #5c4b99;
+    --border-radius: 30px;
+    --box-shadow: none;
+    margin: 0;
+    font-weight: 700;
     cursor: pointer;
     font-size: 0.9rem;
     white-space: nowrap;
+
+    &::part(native) {
+      letter-spacing: 0;
+      text-transform: none;
+      padding: 0 18px;
+    }
   }
 }
 
@@ -828,6 +844,63 @@ ion-footer {
   text-align: center;
   padding: 20px;
   color: var(--ion-color-medium);
+}
+
+.no-sections-state {
+  margin: 16px;
+  padding: 20px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(34, 29, 57, 0.95), rgba(25, 21, 44, 0.95));
+  border: 1px solid rgba(127, 88, 255, 0.25);
+  color: #d8d1f2;
+
+  .empty-state-icon {
+    font-size: 32px;
+    color: #9f8fff;
+    margin-bottom: 10px;
+  }
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    color: #ffffff;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+
+  .subtext {
+    margin-top: 8px;
+    color: #b8addf;
+  }
+
+  .empty-state-actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+
+    ion-button {
+      --border-radius: 10px;
+      font-size: 0.8rem;
+      min-width: 110px;
+    }
+
+    .open-library-btn {
+      --background: #f3efff;
+      --background-activated: #e5dcff;
+      --background-hover: #e5dcff;
+      --color: #2f1f66;
+      --box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+  }
 }
 
 /* ==========================
@@ -1371,15 +1444,29 @@ ion-footer {
   --background: #1a1a2e; /* Match app dark background */
   --color: #ffffff;
   --border-width: 0;
+  --border-color: transparent;
+  --box-shadow: none;
+  box-shadow: none !important;
+  border-bottom: 0 !important;
+}
+
+ion-header {
+  --box-shadow: none !important;
+  box-shadow: none !important;
+  border-bottom: 0 !important;
 }
 
 .home-title {
+  --color: #ffffff;
   color: #ffffff;
   font-weight: 700;
   font-size: 20px;
-  padding-left: 16px;
-  display: flex;
-  align-items: center;
+  letter-spacing: 0;
+  padding-left: 12px;
+  position: static;
+  width: 100%;
+  transform: none;
+  text-align: left;
 }
 
 .footer-spacer {

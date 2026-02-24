@@ -90,6 +90,24 @@ ion-content {
 }
 
 /* ==============================
+   Router Page Visibility Guard
+============================== */
+ion-router-outlet > .ion-page.ion-page-hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+ion-router-outlet > .ion-page.ion-page-invisible {
+  pointer-events: none !important;
+}
+
+ion-router-outlet > .ion-page:not(.ion-page-hidden) {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* ==============================
    Footer & Audio Player Adjustments
 ============================== */
 
@@ -196,50 +214,6 @@ ion-content .scroll-x::-webkit-scrollbar {
   }
 }
 
-/* ==============================
-   Page Visibility Handling
-============================== */
-.ion-page[ion-page-hidden],
-.ion-page[aria-hidden='true'] {
-  display: none !important;
-}
-
-/* ==============================
-   WebView Specific Fixes
-============================== */
-
-/* Prevent scrollbar on short content */
-.ion-page {
-  /* Ensure proper height calculation */
-  min-height: 100vh;
-  height: auto;
-  /* Prevent overscroll bounce on Android */
-  overscroll-behavior: none;
-}
-
-/* Force hide scrollbars on all page content */
-.ion-page * {
-  &::-webkit-scrollbar {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-  }
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-
-/* ==============================
-   Header Visibility Protection
-============================== */
-
-/* Ensure headers stay visible */
-ion-header {
-  position: relative !important;
-  z-index: 1000 !important;
-  /* Prevent header from being affected by scroll */
-  transform: none !important;
-}
-
 /* Prevent scroll behavior when content is short */
 .content-short ion-content::part(scroll) {
   overflow: hidden !important;
@@ -253,27 +227,6 @@ ion-header {
   overflow-y: auto !important;
   pointer-events: auto !important;
   touch-action: pan-y pinch-zoom !important;
-}
-
-/* ==============================
-   Android-Specific Header Protection
-============================== */
-
-@media screen and (max-width: 768px) {
-  /* Additional Android WebView fixes */
-  ion-header {
-    /* Force header to stay in place */
-    position: relative !important;
-    transform: none !important;
-    will-change: auto !important;
-  }
-  
-  /* Prevent any scroll-based header hiding */
-  .content-short ion-header {
-    transform: none !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-  }
 }
 
 /* ==============================

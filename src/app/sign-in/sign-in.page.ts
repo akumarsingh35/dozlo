@@ -1,10 +1,10 @@
 import { Component, inject } from '@angular/core';
-import { IonicModule, NavController, AlertController } from '@ionic/angular';
+import { IonicModule, AlertController, NavController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../core/auth.service';
 import { BasePageComponent } from '../core/base-page.component';
 import { NavigationService } from '../services/navigation.service';
-import { Router } from '@angular/router';
+import { ConnectivityService } from '../services/connectivity.service';
 
 @Component({
   selector: 'app-sign-in',
@@ -14,18 +14,28 @@ import { Router } from '@angular/router';
   styleUrls: ['./sign-in.page.scss']
 })
 export class SignInPage extends BasePageComponent {
-  private navCtrl = inject(NavController);
   private authService = inject(AuthService);
   private alertController = inject(AlertController);
-  private router = inject(Router);
+  private navController = inject(NavController);
+  private connectivity = inject(ConnectivityService);
   
   isLoading = false;
+  private isLegalNavigationInFlight = false;
 
   constructor(navigationService: NavigationService) {
     super(navigationService);
   }
 
   async signInWithGoogle() {
+    if (this.isLoading) {
+      return;
+    }
+
+    if (!this.connectivity.isOnline) {
+      this.connectivity.notifyOfflineAction();
+      return;
+    }
+
     this.isLoading = true;
     
     try {
@@ -33,10 +43,11 @@ export class SignInPage extends BasePageComponent {
       // Navigation is handled in auth service
     } catch (error) {
       console.error('Sign-in error:', error);
+      const message = error instanceof Error ? error.message : 'Unable to sign in with Google. Please try again.';
       
       const alert = await this.alertController.create({
         header: 'Sign-In Failed',
-        message: 'Unable to sign in with Google. Please try again.',
+        message,
         buttons: ['OK']
       });
       
@@ -46,12 +57,37 @@ export class SignInPage extends BasePageComponent {
     }
   }
 
-  navigateToPrivacyPolicy() {
-    this.navCtrl.navigateForward(['/privacy-policy'], { queryParams: { from: 'sign-in' }, animated: false });
+  async openLegalPage(page: 'privacy' | 'terms'): Promise<void> {
+    if (this.isLegalNavigationInFlight) {
+      return;
+    }
+
+    if (!this.connectivity.isOnline) {
+      this.connectivity.notifyOfflineAction();
+      return;
+    }
+
+    this.isLegalNavigationInFlight = true;
+    const target = page === 'privacy' ? '/privacy-policy' : '/terms-of-use';
+    this.blurActiveElement();
+
+    try {
+      await this.navController.navigateForward([target], {
+        animated: false,
+        queryParams: { from: 'sign-in' },
+      });
+    } catch (error) {
+      console.error(`Failed to navigate to ${target}:`, error);
+    } finally {
+      setTimeout(() => {
+        this.isLegalNavigationInFlight = false;
+      }, 150);
+    }
   }
 
-  navigateToTerms() {
-    this.navCtrl.navigateForward(['/terms-of-use'], { queryParams: { from: 'sign-in' }, animated: false });
+  private blurActiveElement(): void {
+    const activeElement = document.activeElement as HTMLElement | null;
+    activeElement?.blur();
   }
 
   // Override to handle navigation state changes if needed

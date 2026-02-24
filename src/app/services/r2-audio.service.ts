@@ -3,6 +3,7 @@ import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http
 import { Observable, throwError, Subject, of, BehaviorSubject, timer } from 'rxjs';
 import { map, catchError, takeUntil, timeout, tap, shareReplay, finalize, retry, switchMap, delay } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { APP_VERSION } from '../version';
 
 
 export interface AudioTrack {
@@ -32,7 +33,7 @@ export class R2AudioService {
   // Simple Android security features (no extra dependencies)
   private deviceFingerprint: string | null = null;
   private requestCount = 0;
-  private readonly APP_VERSION = '1.0.0'; // You can get this from your app config
+  private readonly APP_VERSION = APP_VERSION;
   private readonly URL_TTL_MS = 180000; // 3 minutes default TTL for signed URLs
   private readonly REFRESH_RATIO = 0.75; // refresh at ~75% of TTL
   private refreshTimers = new Map<string, any>();
@@ -443,6 +444,60 @@ export class R2AudioService {
         console.error('❌ Error message:', error.message);
         console.error('❌ Error URL:', error.url);
         return throwError(() => new Error('Failed to get audio'));
+      })
+    );
+  }
+
+  /**
+   * Resolve remote audio file size from worker HEAD response.
+   */
+  getAudioFileSize(r2Path: string): Observable<number | null> {
+    if (!r2Path) {
+      return of(null);
+    }
+
+    const url = this.getWorkerUrl(r2Path);
+
+    return this.http.head(url, { observe: 'response' }).pipe(
+      timeout(15000),
+      map((response) => {
+        const rawSize = response.headers.get('Content-Length');
+        const parsed = Number.parseInt(rawSize ?? '', 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+      }),
+      catchError((error) => {
+        console.warn('⚠️ Could not resolve audio file size:', error);
+        return of(null);
+      })
+    );
+  }
+
+  /**
+   * Download a specific byte range of an audio file.
+   * Used by offline-download manager for chunked persistence.
+   */
+  getAudioChunkBlob(r2Path: string, startByte: number, endByte: number): Observable<Blob> {
+    if (!r2Path) {
+      return throwError(() => new Error('Missing R2 path for chunk download'));
+    }
+
+    const safeStart = Math.max(0, Math.floor(startByte));
+    const safeEnd = Math.max(safeStart, Math.floor(endByte));
+    const url = this.getWorkerUrl(r2Path);
+
+    let headers = this.getSecureHeaders();
+    headers = headers.set('Range', `bytes=${safeStart}-${safeEnd}`);
+
+    return this.http.get(url, { headers, responseType: 'blob' }).pipe(
+      timeout(60000),
+      catchError((error) => {
+        console.error('❌ Audio chunk download failed:', {
+          r2Path,
+          safeStart,
+          safeEnd,
+          error,
+        });
+        return throwError(() => new Error('Failed to download audio chunk'));
       })
     );
   }

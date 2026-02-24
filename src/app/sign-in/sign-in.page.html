@@ -46,9 +46,9 @@
       <p class="sign-in-note">Quick and secure sign-in with your Google account</p>
       <p class="terms-note">
         By continuing, you agree to our 
-        <a (click)="navigateToPrivacyPolicy()" class="link">Privacy Policy</a> 
+        <button type="button" class="link-button" (click)="openLegalPage('privacy')">Privacy Policy</button>
         and 
-        <a (click)="navigateToTerms()" class="link">Terms of Use</a>.
+        <button type="button" class="link-button" (click)="openLegalPage('terms')">Terms of Use</button>.
       </p>
     </div>
   </div>

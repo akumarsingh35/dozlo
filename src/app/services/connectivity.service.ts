@@ -1,5 +1,5 @@
 import { Injectable, OnDestroy } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { Capacitor, PluginListenerHandle } from '@capacitor/core';
 import { Network, ConnectionStatus } from '@capacitor/network';
 
@@ -9,6 +9,8 @@ import { Network, ConnectionStatus } from '@capacitor/network';
 export class ConnectivityService implements OnDestroy {
   private readonly onlineSubject = new BehaviorSubject<boolean>(true);
   readonly isOnline$ = this.onlineSubject.asObservable();
+  private readonly offlineActionSubject = new Subject<void>();
+  readonly offlineAction$ = this.offlineActionSubject.asObservable();
 
   private networkListener?: PluginListenerHandle;
   private browserOnlineHandler = () => this.onlineSubject.next(true);
@@ -47,6 +49,12 @@ export class ConnectivityService implements OnDestroy {
 
   get isOnline(): boolean {
     return this.onlineSubject.getValue();
+  }
+
+  notifyOfflineAction(): void {
+    if (!this.isOnline) {
+      this.offlineActionSubject.next();
+    }
   }
 
   ngOnDestroy(): void {

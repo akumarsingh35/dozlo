@@ -10,7 +10,7 @@ const config: CapacitorConfig = {
       target: {
         android: {
           adaptiveIcon: {
-            foregroundImage: 'resources/icon.png',
+            foregroundImage: 'resources/icon-foreground.png',
             backgroundColor: '#120f29'
           }
         }
@@ -20,11 +20,13 @@ const config: CapacitorConfig = {
   plugins:{
     StatusBar:{
       overlaysWebView: false,
-      style: 'dark',
+      style: 'DARK',
       backgroundColor: '#120f29',
     },
     SplashScreen: {
-      launchShowDuration: 0,
+      launchShowDuration: 600,
+      backgroundColor: '#120f29',
+      androidScaleType: 'CENTER_INSIDE',
     },
     FirebaseAnalytics: {
       collectionEnabled: true
@@ -56,5 +58,4 @@ const config: CapacitorConfig = {
 
 export default config;
 
-// Verified: google-services.json should be at android/app/google-services.json and package_name must match appId 'io.ionic.starter'
-
+// Verified: google-services.json should be at android/app/google-services.json and package_name must match appId 'com.dozlo.app'

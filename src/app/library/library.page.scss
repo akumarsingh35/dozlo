@@ -121,6 +121,51 @@ ion-content {
   }
 }
 
+.offline-mode-banner {
+  margin: 12px 16px 18px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(127, 88, 255, 0.18), rgba(60, 46, 110, 0.32));
+  border: 1px solid rgba(162, 153, 249, 0.35);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: #ece8ff;
+
+  ion-icon {
+    font-size: 1.3rem;
+    color: #c7bcff;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+
+  .offline-mode-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.35;
+
+    strong {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    span {
+      font-size: 0.82rem;
+      color: #d8d1f5;
+    }
+  }
+}
+
+.downloads-section {
+  margin-top: -4px;
+
+  swiper-slide {
+    min-width: 0 !important;
+  }
+}
+
 swiper-container {
   padding-left: 16px;
   padding-right: 16px;
@@ -256,6 +301,111 @@ swiper-container {
         text-overflow: ellipsis;
       }
     }
+  }
+}
+
+.listening-card.download-card {
+  width: 100%;
+  min-width: 0;
+  contain: layout paint;
+
+  .download-delete-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 7;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(18, 15, 41, 0.88);
+    color: #f1edff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+
+  .download-delete-btn ion-icon {
+    font-size: 1rem;
+  }
+
+  .download-delete-btn:active {
+    transform: scale(0.92);
+  }
+
+  .download-delete-btn:hover {
+    background: rgba(127, 88, 255, 0.9);
+  }
+
+  .download-progress-badge {
+    position: absolute;
+    top: calc(50% - 8px);
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 6;
+    pointer-events: none;
+  }
+
+  .download-progress-ring {
+    --download-progress: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: conic-gradient(
+      #a299f9 calc(var(--download-progress) * 1%),
+      rgba(255, 255, 255, 0.22) 0
+    );
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+  }
+
+  .download-progress-ring::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: rgba(18, 15, 41, 0.95);
+  }
+
+  .download-progress-ring span {
+    position: relative;
+    z-index: 1;
+    color: #ffffff;
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  &.not-playable {
+    cursor: default;
+  }
+
+  &.not-playable:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  &.not-playable:active {
+    transform: none;
+    box-shadow: none;
+  }
+
+  &.downloading {
+    opacity: 0.72;
+  }
+
+  &.downloading .card-background {
+    filter: brightness(0.45);
+  }
+
+  &.downloading .card-footer {
+    background-color: rgba(42, 39, 65, 0.95);
   }
 }
 

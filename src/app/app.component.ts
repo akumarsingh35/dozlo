@@ -17,6 +17,8 @@ import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAnalytics } from '@capacitor-firebase/analytics';
 import { ConnectivityService } from './services/connectivity.service';
+import { ForceUpdateService } from './services/force-update.service';
+import { OfflineDownloadManagerService } from './services/offline-download-manager.service';
 
 @Component({
   selector: 'app-root',
@@ -30,10 +32,17 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   audioState: AudioState = { isPlaying: false, currentTrack: null, progress: 0, duration: 0, isLoading: false, loadingTrackId: '', currentTime: 0 };
   private audioSub: Subscription;
   private networkSub?: Subscription;
+  private offlineActionSub?: Subscription;
   showFooterAndAudio = true;
   private currentUrl = '/home';
   isOnline = true;
+  showOfflineBanner = false;
   isCheckingNetwork = false;
+  isForceUpdateRequired = false;
+  forceUpdateTitle = 'Update required';
+  forceUpdateMessage = 'Please update Dozlo to continue.';
+  forceUpdateStoreUrl = 'https://play.google.com/store/apps/details?id=com.dozlo.app';
+  private offlineBannerTimer: ReturnType<typeof setTimeout> | null = null;
   @ViewChild(IonRouterOutlet, { static: false }) routerOutlet!: IonRouterOutlet;
 
   constructor(
@@ -43,7 +52,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     private router: Router,
     private backButton: BackButtonService,
     private ngZone: NgZone,
-    private connectivity: ConnectivityService
+    private connectivity: ConnectivityService,
+    private forceUpdateService: ForceUpdateService,
+    private offlineDownloadManager: OfflineDownloadManagerService
   ) {
     addIcons({ homeOutline, bookOutline, searchOutline, personOutline, cloudOfflineOutline });
     
@@ -59,8 +70,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
     this.connectivity.init().then(() => {
       this.networkSub = this.connectivity.isOnline$.subscribe((online) => {
-        this.isOnline = online;
+        this.handleConnectivityChange(online);
       });
+    });
+
+    this.offlineActionSub = this.connectivity.offlineAction$.subscribe(() => {
+      if (!this.isForceUpdateRequired) {
+        this.showOfflineBannerTemporarily();
+      }
     });
     
     // Listen to route changes to hide footer and audio on sign-in page
@@ -94,6 +111,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     // Listen for app resume to ensure clean state
     App.addListener('resume', () => {
       this.ensureCleanNotificationState();
+      void this.checkForceUpdateRequirement();
+      void this.offlineDownloadManager.runAutoCleanup();
     });
   }
 
@@ -123,6 +142,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (this.networkSub) {
       this.networkSub.unsubscribe();
     }
+    if (this.offlineActionSub) {
+      this.offlineActionSub.unsubscribe();
+    }
+    this.clearOfflineBannerTimer();
   }
 
   async retryNetwork(): Promise<void> {
@@ -139,11 +162,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.platform.ready().then(async () => {
       console.log('🚀 Platform ready in app component');
       
-      // This is the crucial setting. 
-      // `overlay: false` tells the app's webview to stay within the safe areas.
+      // Keep status bar non-overlaid so OEM skins do not force low-contrast icon colors.
       await StatusBar.setOverlaysWebView({ overlay: false });
-      await StatusBar.setStyle({ style: Style.Dark });
       await StatusBar.setBackgroundColor({ color: '#120f29' });
+      await StatusBar.setStyle({ style: Style.Dark });
       
       // Initialize content padding
       this.updateContentPadding();
@@ -171,7 +193,26 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       // Status bar configured above; back handler initialized after view init
       
       // Google Auth initialization is now handled in AuthService
+
+      await this.checkForceUpdateRequirement();
+      await this.offlineDownloadManager.initializeMaintenance();
     });
+  }
+
+  async openStoreForUpdate(): Promise<void> {
+    const playStoreUrl = this.forceUpdateStoreUrl || 'https://play.google.com/store/apps/details?id=com.dozlo.app';
+    const packageId = this.extractPackageId(playStoreUrl);
+
+    if (Capacitor.getPlatform() === 'android' && packageId) {
+      // Attempt to open Play Store app first; fallback to HTTPS listing.
+      window.location.href = `market://details?id=${packageId}`;
+      setTimeout(() => {
+        window.open(playStoreUrl, '_blank');
+      }, 700);
+      return;
+    }
+
+    window.open(playStoreUrl, '_blank');
   }
 
   ngAfterViewInit(): void {
@@ -188,7 +229,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     
     let paddingBottom: number;
     
-    if (!this.showFooterAndAudio) {
+    if (!this.showFooterAndAudio || this.isForceUpdateRequired) {
       // No footer or audio player
       paddingBottom = safeAreaBottom;
     } else if (this.audioState.currentTrack) {
@@ -203,6 +244,44 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     document.documentElement.style.setProperty('--content-padding-bottom', `${paddingBottom}px`);
   }
 
+  private handleConnectivityChange(isOnline: boolean): void {
+    const wasOnline = this.isOnline;
+    this.isOnline = isOnline;
+
+    if (!isOnline) {
+      // Notify once, then keep UI unobtrusive while users continue in offline mode.
+      if (wasOnline || !this.showOfflineBanner) {
+        this.showOfflineBannerTemporarily();
+      }
+      return;
+    }
+
+    this.hideOfflineBanner();
+  }
+
+  private showOfflineBannerTemporarily(durationMs: number = 3500): void {
+    this.showOfflineBanner = true;
+    this.clearOfflineBannerTimer();
+    this.offlineBannerTimer = setTimeout(() => {
+      this.ngZone.run(() => {
+        this.showOfflineBanner = false;
+        this.offlineBannerTimer = null;
+      });
+    }, durationMs);
+  }
+
+  private hideOfflineBanner(): void {
+    this.showOfflineBanner = false;
+    this.clearOfflineBannerTimer();
+  }
+
+  private clearOfflineBannerTimer(): void {
+    if (this.offlineBannerTimer) {
+      clearTimeout(this.offlineBannerTimer);
+      this.offlineBannerTimer = null;
+    }
+  }
+
   private getSafeAreaBottom(): number {
     // Get safe area bottom from CSS environment variable
     const safeArea = getComputedStyle(document.documentElement).getPropertyValue('--ion-safe-area-bottom');
@@ -210,5 +289,34 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       return parseInt(safeArea) || 0;
     }
     return 0;
+  }
+
+  private async checkForceUpdateRequirement(): Promise<void> {
+    try {
+      const result = await this.forceUpdateService.checkForUpdate();
+      this.ngZone.run(() => {
+        this.isForceUpdateRequired = result.isRequired;
+        this.forceUpdateTitle = result.title;
+        this.forceUpdateMessage = result.message;
+        this.forceUpdateStoreUrl = result.storeUrl;
+        this.updateContentPadding();
+      });
+
+      if (result.isRequired) {
+        this.globalAudioPlayer.pause();
+      }
+    } catch (error) {
+      console.error('❌ Failed to evaluate force-update requirement:', error);
+    }
+  }
+
+  private extractPackageId(playStoreUrl: string): string | null {
+    try {
+      const url = new URL(playStoreUrl);
+      const packageId = url.searchParams.get('id');
+      return packageId && packageId.trim().length > 0 ? packageId.trim() : null;
+    } catch {
+      return null;
+    }
   }
 }

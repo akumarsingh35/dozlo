@@ -1,20 +1,26 @@
 
 <ion-app>
-  <div class="global-offline-banner" *ngIf="!isOnline">
+  <div class="global-offline-banner" *ngIf="showOfflineBanner && !isForceUpdateRequired">
     <ion-icon name="cloud-offline-outline" class="offline-icon"></ion-icon>
     <div class="offline-text">
       <strong>No internet connection</strong>
       <span>Please check your network and try again.</span>
     </div>
-    <ion-button fill="solid" size="small" (click)="retryNetwork()" [disabled]="isCheckingNetwork">
-      <ion-spinner *ngIf="isCheckingNetwork" name="crescent"></ion-spinner>
-      <span *ngIf="!isCheckingNetwork">Retry</span>
-    </ion-button>
   </div>
-  <ion-router-outlet [animated]="true" [ngClass]="{
+  <ion-router-outlet [animated]="false" [ngClass]="{
     'with-footer': showFooterAndAudio,
     'with-footer-and-player': showFooterAndAudio && audioState.currentTrack
   }"></ion-router-outlet>
-  <app-global-audio-player *ngIf="showFooterAndAudio"></app-global-audio-player>
-  <app-nav-footer *ngIf="showFooterAndAudio"></app-nav-footer>
+  <app-global-audio-player *ngIf="showFooterAndAudio && !isForceUpdateRequired"></app-global-audio-player>
+  <app-nav-footer *ngIf="showFooterAndAudio && !isForceUpdateRequired"></app-nav-footer>
+
+  <div class="force-update-overlay" *ngIf="isForceUpdateRequired">
+    <div class="force-update-card">
+      <h2>{{ forceUpdateTitle }}</h2>
+      <p>{{ forceUpdateMessage }}</p>
+      <ion-button expand="block" shape="round" (click)="openStoreForUpdate()">
+        Update now
+      </ion-button>
+    </div>
+  </div>
 </ion-app>

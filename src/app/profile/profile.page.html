@@ -35,16 +35,6 @@
     </div>
 
     <div class="card">
-      <h2 class="card-title">Settings</h2>
-      <ion-list lines="none">
-        <ion-item button detail="true" *ngFor="let item of settingsItems" (click)="onSettingClick(item)">
-          <ion-icon [name]="item.icon" slot="start"></ion-icon>
-          <ion-label>{{ item.text }}</ion-label>
-        </ion-item>
-      </ion-list>
-    </div>
-
-    <div class="card">
       <h2 class="card-title">Legal & Information</h2>
       <ion-list lines="none">
         <ion-item
@@ -111,9 +101,9 @@
         <p class="sign-in-note">Quick and secure sign-in with your Google account</p>
         <p class="terms-note">
           By continuing, you agree to our 
-          <a (click)="navigateToPrivacyPolicy()" class="link">Privacy Policy</a> 
+          <button type="button" class="link-button" (click)="openLegalPage('privacy')">Privacy Policy</button>
           and 
-          <a (click)="navigateToTerms()" class="link">Terms of Use</a>.
+          <button type="button" class="link-button" (click)="openLegalPage('terms')">Terms of Use</button>.
         </p>
       </div>
     </div>
@@ -124,6 +114,16 @@
     <h2 class="card-title">Feedback & Support</h2>
     <ion-list lines="none">
       <ion-item button detail="true" *ngFor="let item of feedbackSupportItems" (click)="onFeedbackSupportClick(item)">
+        <ion-icon [name]="item.icon" slot="start"></ion-icon>
+        <ion-label>{{ item.text }}</ion-label>
+      </ion-item>
+    </ion-list>
+  </div>
+
+  <div class="card" *ngIf="!isLoading && user">
+    <h2 class="card-title">Settings</h2>
+    <ion-list lines="none">
+      <ion-item button detail="true" *ngFor="let item of settingsItems" (click)="onSettingClick(item)">
         <ion-icon [name]="item.icon" slot="start"></ion-icon>
         <ion-label>{{ item.text }}</ion-label>
       </ion-item>

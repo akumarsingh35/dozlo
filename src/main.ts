@@ -23,9 +23,7 @@ if (environment.production) {
 bootstrapApplication(AppComponent, {
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
-    importProvidersFrom(IonicModule.forRoot({
-      mode: 'ios' // Use iOS mode for consistent behavior across platforms
-    })),
+    importProvidersFrom(IonicModule.forRoot()),
     provideRouter(routes, withEnabledBlockingInitialNavigation()),
     provideHttpClient(),
     provideFirebaseApp(() => initializeApp(firebaseConfig)),

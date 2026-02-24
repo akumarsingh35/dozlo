@@ -420,10 +420,18 @@ ion-footer {
     margin-top: 16px;
     line-height: 1.4;
     
-    .link {
+    .link-button {
       color: var(--ion-color-primary);
-      text-decoration: none;
+      text-decoration: underline;
       cursor: pointer;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      margin: 0;
+      font: inherit;
+      display: inline;
+      -webkit-tap-highlight-color: rgba(127, 88, 255, 0.15);
+      pointer-events: auto;
       
       &:hover {
         text-decoration: underline;

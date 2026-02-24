@@ -1,9 +1,15 @@
 import { Component, Input, OnInit, OnDestroy, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, ModalController } from '@ionic/angular';
+import { IonicModule, ModalController, ToastController } from '@ionic/angular';
 import { GlobalAudioPlayerService } from '../../services/global-audio-player.service';
 import { AmbientAudioService } from '../../services/ambient-audio.service';
+import { FavoritesService } from '../../services/favorites.service';
 import { Subscription } from 'rxjs';
+import {
+  OfflineDownloadManagerService,
+  QueueOfflineDownloadResult,
+} from '../../services/offline-download-manager.service';
+import { OfflineDownloadRecord } from '../../services/offline-download-storage.service';
 
 @Component({
   selector: 'app-fullscreen-audio-player',
@@ -25,9 +31,12 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
   // Audio state synced from service
   isPlaying = false;
   isLoading = false;
+  isFavorite = false;
   currentTime = 0;
   duration = 0;
   progress = 0;
+  downloadProgress = 0;
+  downloadStatus: OfflineDownloadRecord['status'] | 'idle' = 'idle';
 
   // Ambient tracks state
   ambientTracks: { id: string; name: string; volume: number }[] = [];
@@ -42,6 +51,9 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
   constructor(
     private modalController: ModalController,
     private ambientAudioService: AmbientAudioService,
+    private favoritesService: FavoritesService,
+    private offlineDownloadManager: OfflineDownloadManagerService,
+    private toastController: ToastController,
     public globalAudioPlayerService: GlobalAudioPlayerService,
     private ngZone: NgZone
   ) {}
@@ -82,6 +94,21 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
       })
     );
 
+    this.subscriptions.add(
+      this.favoritesService.getFavorites().subscribe(() => {
+        this.updateFavoriteStatus();
+      })
+    );
+
+    this.subscriptions.add(
+      this.offlineDownloadManager.downloads$.subscribe(() => {
+        this.syncDownloadStatus();
+      })
+    );
+
+    this.updateFavoriteStatus();
+    this.syncDownloadStatus();
+
     // Ensure timing is populated for long streams
     this.globalAudioPlayerService.refreshTiming();
   }
@@ -92,6 +119,132 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
 
   dismiss() {
     this.modalController.dismiss();
+  }
+
+  private getEffectiveStoryId(): string {
+    if (this.storyId) {
+      return this.storyId;
+    }
+
+    if (this.title) {
+      return `temp_${this.title.replace(/\s+/g, '_').toLowerCase()}`;
+    }
+
+    return '';
+  }
+
+  private updateFavoriteStatus(): void {
+    const effectiveStoryId = this.getEffectiveStoryId();
+    this.isFavorite = !!effectiveStoryId && this.favoritesService.isFavorite(effectiveStoryId);
+  }
+
+  toggleFavorite(event: Event): void {
+    event.stopPropagation();
+
+    const effectiveStoryId = this.getEffectiveStoryId();
+    if (!effectiveStoryId) {
+      return;
+    }
+
+    const storyData = {
+      id: effectiveStoryId,
+      title: this.title,
+      subTitle: this.description,
+      imageUrl: this.photoUrl,
+      audioUrl: this.audioUrl,
+      r2Path: this.r2Path
+    };
+
+    if (this.isFavorite) {
+      this.favoritesService.removeFromFavorites(effectiveStoryId);
+    } else {
+      this.favoritesService.addToFavorites(storyData);
+    }
+
+    this.updateFavoriteStatus();
+  }
+
+  async onDownloadClick(event: Event): Promise<void> {
+    event.stopPropagation();
+    const storyId = this.getEffectiveStoryId();
+    if (!storyId || !this.r2Path) {
+      await this.presentDownloadToast('Download unavailable for this audio.');
+      return;
+    }
+
+    if (this.downloadStatus === 'queued' || this.downloadStatus === 'downloading') {
+      await this.offlineDownloadManager.cancelDownload(storyId);
+      await this.presentDownloadToast('Download cancelled.');
+      return;
+    }
+
+    if (!(this.duration > 0)) {
+      await this.globalAudioPlayerService.refreshTiming();
+    }
+
+    const durationSeconds = this.duration > 0 ? this.duration : undefined;
+
+    const result: QueueOfflineDownloadResult = await this.offlineDownloadManager.queueDownload({
+      storyId,
+      title: this.title,
+      r2Path: this.r2Path,
+      photoUrl: this.photoUrl,
+      durationSeconds,
+    });
+
+    const warning = result.warnings?.[0];
+    if (warning) {
+      await this.presentDownloadToast(`${result.message} ${warning}`);
+    } else {
+      await this.presentDownloadToast(result.message);
+    }
+  }
+
+  getDownloadLabel(): string {
+    if (this.downloadStatus === 'downloading') {
+      return `Downloading ${this.downloadProgress}%`;
+    }
+    if (this.downloadStatus === 'queued') {
+      return 'Queued';
+    }
+    if (this.downloadStatus === 'downloaded') {
+      return 'Downloaded';
+    }
+    if (this.downloadStatus === 'failed') {
+      return 'Retry Download';
+    }
+    if (this.downloadStatus === 'cancelled') {
+      return 'Download';
+    }
+    return 'Download';
+  }
+
+  private syncDownloadStatus(): void {
+    const storyId = this.getEffectiveStoryId();
+    if (!storyId) {
+      this.downloadStatus = 'idle';
+      this.downloadProgress = 0;
+      return;
+    }
+
+    const record = this.offlineDownloadManager.getDownloadByStoryId(storyId);
+    if (!record) {
+      this.downloadStatus = 'idle';
+      this.downloadProgress = 0;
+      return;
+    }
+
+    this.downloadStatus = record.status;
+    this.downloadProgress = Math.max(0, Math.min(100, record.progress || 0));
+  }
+
+  private async presentDownloadToast(message: string): Promise<void> {
+    const toast = await this.toastController.create({
+      message,
+      duration: 2200,
+      position: 'bottom',
+    });
+    await toast.present();
   }
 
   togglePlay() {

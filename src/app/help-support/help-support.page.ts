@@ -8,6 +8,7 @@ import { Subject } from 'rxjs';
 import { Capacitor } from '@capacitor/core';
 import { AuthService } from '../core/auth.service';
 import { User } from '@angular/fire/auth';
+import { APP_VERSION } from '../version';
 
 @Component({
   selector: 'app-help-support',
@@ -17,11 +18,12 @@ import { User } from '@angular/fire/auth';
   imports: [IonicModule, CommonModule]
 })
 export class HelpSupportPage implements OnInit {
-  private navCtrl = inject(NavController);
   private route = inject(ActivatedRoute);
+  private navController = inject(NavController);
   private firebaseDataService = inject(FirebaseDataService);
   private authService = inject(AuthService);
   private destroy$ = new Subject<void>();
+  private isNavigating = false;
   
   backHref = '/sign-in';
   isLoading = true;
@@ -198,7 +200,7 @@ Thank you for your help!
   }
 
   private getAppVersion(): string {
-    return '1.0.0'; // Replace with actual app version
+    return APP_VERSION;
   }
 
   private openEmailClient(subject: string, body: string, email: string) {
@@ -206,17 +208,31 @@ Thank you for your help!
     window.open(mailtoLink, '_blank');
   }
 
-  navigateToPrivacyPolicy() {
-    this.navCtrl.navigateForward(['/privacy-policy'], { 
-      queryParams: { from: 'help-support' }, 
-      animated: false 
-    });
+  async navigateToPrivacyPolicy() {
+    await this.navigateTo('/privacy-policy', 'help-support');
   }
 
-  navigateToTerms() {
-    this.navCtrl.navigateForward(['/terms-of-use'], { 
-      queryParams: { from: 'help-support' }, 
-      animated: false 
-    });
+  async navigateToTerms() {
+    await this.navigateTo('/terms-of-use', 'help-support');
+  }
+
+  private async navigateTo(path: string, from: string): Promise<void> {
+    if (this.isNavigating) {
+      return;
+    }
+
+    this.isNavigating = true;
+    try {
+      await this.navController.navigateForward([path], {
+        animated: false,
+        queryParams: { from },
+      });
+    } catch (error) {
+      console.error(`Navigation failed for ${path}:`, error);
+    } finally {
+      setTimeout(() => {
+        this.isNavigating = false;
+      }, 150);
+    }
   }
 }

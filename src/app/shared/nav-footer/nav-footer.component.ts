@@ -20,6 +20,7 @@ export class NavFooterComponent {
   ];
 
   activePath: string = '';
+  private isNavigating = false;
 
   constructor(private navCtrl: NavController, private router: Router) {
     this.router.events.pipe(
@@ -29,8 +30,19 @@ export class NavFooterComponent {
     });
   }
 
-  navigateTo(path: string) {
-    this.navCtrl.navigateRoot(path, { animated: false });
+  async navigateTo(path: string) {
+    if (this.isNavigating || this.activePath === path) {
+      return;
+    }
+
+    this.isNavigating = true;
+    try {
+      await this.navCtrl.navigateRoot(path, { animated: false });
+    } finally {
+      setTimeout(() => {
+        this.isNavigating = false;
+      }, 180);
+    }
   }
 
   isActive(path: string): boolean {

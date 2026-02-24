@@ -60,12 +60,6 @@ export class ScrollManagerService {
         touch-action: pan-y pinch-zoom !important;
       }
       
-      /* Ensure header stays visible */
-      ion-header {
-        position: relative !important;
-        z-index: 1000 !important;
-      }
-      
       /* Content spacing protection */
       .initial-content,
       .search-results,

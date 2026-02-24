@@ -66,8 +66,6 @@ testem.log
 /plugins/
 /resources/ios/icon/
 /resources/ios/splash/
-/resources/android/icon/
-/resources/android/splash/
 
 # Firebase
 .firebase/
@@ -80,7 +78,6 @@ firebase-debug.*.log
 !.env.example
 
 # Capacitor
-android/
 ios/
 
 # Misc

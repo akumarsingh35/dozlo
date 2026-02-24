@@ -15,10 +15,11 @@ import { APP_VERSION } from '../version';
   imports: [IonicModule, CommonModule]
 })
 export class AboutPage implements OnInit {
-  private navCtrl = inject(NavController);
   private route = inject(ActivatedRoute);
+  private navController = inject(NavController);
   private firebaseDataService = inject(FirebaseDataService);
   private destroy$ = new Subject<void>();
+  private isNavigating = false;
   
   backHref = '/sign-in';
   isLoading = true;
@@ -88,17 +89,31 @@ export class AboutPage implements OnInit {
       });
   }
 
-  navigateToPrivacyPolicy() {
-    this.navCtrl.navigateForward(['/privacy-policy'], { 
-      queryParams: { from: 'about' }, 
-      animated: false 
-    });
+  async navigateToPrivacyPolicy() {
+    await this.navigateTo('/privacy-policy', 'about');
   }
 
-  navigateToTerms() {
-    this.navCtrl.navigateForward(['/terms-of-use'], { 
-      queryParams: { from: 'about' }, 
-      animated: false 
-    });
+  async navigateToTerms() {
+    await this.navigateTo('/terms-of-use', 'about');
+  }
+
+  private async navigateTo(path: string, from: string): Promise<void> {
+    if (this.isNavigating) {
+      return;
+    }
+
+    this.isNavigating = true;
+    try {
+      await this.navController.navigateForward([path], {
+        animated: false,
+        queryParams: { from },
+      });
+    } catch (error) {
+      console.error(`Navigation failed for ${path}:`, error);
+    } finally {
+      setTimeout(() => {
+        this.isNavigating = false;
+      }, 150);
+    }
   }
 }

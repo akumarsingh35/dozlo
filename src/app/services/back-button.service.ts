@@ -2,13 +2,25 @@ import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { Platform, NavController, AlertController, ActionSheetController, ModalController, PopoverController, ToastController, MenuController, IonRouterOutlet } from '@ionic/angular';
 import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 @Injectable({ providedIn: 'root' })
 export class BackButtonService {
   private routerOutlet?: IonRouterOutlet;
   private initialized = false;
+  private isHandlingBack = false;
 
   private readonly rootRoutes = new Set<string>(['/home', '/explore', '/library', '/profile']);
+  private readonly allowedFromSources = new Set<string>([
+    'home',
+    'explore',
+    'library',
+    'profile',
+    'about',
+    'help-support',
+    'data-usage',
+    'sign-in'
+  ]);
 
   constructor(
     private platform: Platform,
@@ -28,10 +40,33 @@ export class BackButtonService {
     if (!this.initialized) {
       this.initialized = true;
       this.platform.ready().then(() => {
-        App.addListener('backButton', async () => {
-          await this.handleBackNavigation();
+        // Primary Android hardware back handling via Capacitor.
+        if (Capacitor.getPlatform() === 'android') {
+          App.addListener('backButton', async () => {
+            await this.safeHandleBackNavigation();
+          });
+        }
+
+        // Fallback handling for devices/ROMs where Capacitor callback is inconsistent.
+        this.platform.backButton.subscribeWithPriority(10, async () => {
+          await this.safeHandleBackNavigation();
         });
       });
+    }
+  }
+
+  private async safeHandleBackNavigation() {
+    if (this.isHandlingBack) {
+      return;
+    }
+    this.isHandlingBack = true;
+    try {
+      await this.handleBackNavigation();
+    } finally {
+      // Prevent duplicate handling from dual back listeners on the same press.
+      setTimeout(() => {
+        this.isHandlingBack = false;
+      }, 120);
     }
   }
 
@@ -81,7 +116,6 @@ export class BackButtonService {
 
     const urlTree = this.router.parseUrl(currentUrl);
     const fromParam = (urlTree.queryParams && urlTree.queryParams['from']) ? String(urlTree.queryParams['from']).trim() : '';
-    const allowedSources = new Set<string>(['home', 'explore', 'library', 'profile', 'about', 'help-support', 'data-usage', 'sign-in']);
 
     // Special-case: category subpage should go back to explore tab
     if (pathOnly.startsWith('/explore-category')) {
@@ -97,10 +131,20 @@ export class BackButtonService {
 
     // Legal pages should return to their source (from query) or sensible default
     if (pathOnly === '/privacy-policy' || pathOnly === '/terms-of-use') {
-      if (fromParam && allowedSources.has(fromParam)) {
+      if (fromParam && this.allowedFromSources.has(fromParam)) {
         await this.router.navigateByUrl(`/${fromParam}`);
       } else {
         await this.router.navigateByUrl('/sign-in');
+      }
+      return;
+    }
+
+    // Profile sub-pages should return to source (from query) or profile fallback.
+    if (pathOnly === '/about' || pathOnly === '/help-support' || pathOnly === '/data-usage') {
+      if (fromParam && this.allowedFromSources.has(fromParam)) {
+        await this.router.navigateByUrl(`/${fromParam}`);
+      } else {
+        await this.router.navigateByUrl('/profile');
       }
       return;
     }
@@ -143,5 +187,3 @@ export class BackButtonService {
     return false;
   }
 }
-
-

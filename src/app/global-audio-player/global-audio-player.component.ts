@@ -12,6 +12,7 @@ import { R2AudioService } from '../services/r2-audio.service';
 import { GlobalAudioPlayerService } from '../services/global-audio-player.service';
 import { FavoritesService } from '../services/favorites.service';
 import { BackgroundAudioStabilityService } from '../services/background-audio-stability.service';
+import { Subscription } from 'rxjs';
 
 
 
@@ -85,6 +86,7 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
   private isInitializing = false; // Prevent multiple simultaneous initializations
   private initializationPromise: Promise<void> | null = null; // Track initialization
   private audioInstanceLock = false; // Additional lock to prevent race conditions
+  private subscriptions = new Subscription();
 
   constructor(
     private router: Router,
@@ -109,9 +111,17 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     // Subscribe to global audio state changes
-    this.globalAudioPlayerService.audioState$.subscribe(state => {
-      this.ngZone.run(() => this.syncWithGlobalService(state));
-    });
+    this.subscriptions.add(
+      this.globalAudioPlayerService.audioState$.subscribe(state => {
+        this.ngZone.run(() => this.syncWithGlobalService(state));
+      })
+    );
+
+    this.subscriptions.add(
+      this.favoritesService.getFavorites().subscribe(() => {
+        this.ngZone.run(() => this.updateFavoriteStatus());
+      })
+    );
   }
 
   ngOnChanges(changes: SimpleChanges) {
@@ -123,6 +133,7 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     console.log('🎵 GlobalAudioPlayerComponent ngOnDestroy');
+    this.subscriptions.unsubscribe();
     
     // CRITICAL FIX: Ensure complete cleanup
     this.cleanupPreviousAudio();
@@ -243,9 +254,20 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
 
   // Favorites functionality
   private updateFavoriteStatus() {
-    if (this.storyId && this.title) {
-      this.isFavorite = this.favoritesService.isFavorite(this.storyId);
+    const effectiveStoryId = this.getEffectiveStoryId();
+    this.isFavorite = !!effectiveStoryId && this.favoritesService.isFavorite(effectiveStoryId);
+  }
+
+  private getEffectiveStoryId(): string {
+    if (this.storyId) {
+      return this.storyId;
     }
+
+    if (this.title) {
+      return `temp_${this.title.replace(/\s+/g, '_').toLowerCase()}`;
+    }
+
+    return '';
   }
 
   toggleFavorite(event: Event): void {
@@ -254,13 +276,7 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
     console.log('🎯 BUTTON CLICKED!');
     console.log('💖 Toggle favorite clicked - storyId:', this.storyId, 'title:', this.title);
     
-    // Generate a storyId if none exists (fallback for Firebase data issues)
-    let storyId = this.storyId;
-    if (!storyId && this.title) {
-      // Generate consistent ID based on title only (not timestamp)
-      storyId = `temp_${this.title.replace(/\s+/g, '_').toLowerCase()}`;
-      console.log('💖 Generated fallback storyId:', storyId);
-    }
+    const storyId = this.getEffectiveStoryId();
     
     if (!storyId) {
       console.error('No storyId available for favorite toggle');
@@ -388,6 +404,7 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
 
   // Sync component state with global service state
   private syncWithGlobalService(state: any) {
+    const previousEffectiveStoryId = this.getEffectiveStoryId();
     const previousState = {
       isPlaying: this.isPlaying,
       isLoading: this.isLoading,
@@ -413,7 +430,8 @@ export class GlobalAudioPlayerComponent implements OnInit, OnDestroy {
     this.shouldShowPlayer = !!state.currentTrack || !!state.isLoading || !!state.isPlaying;
 
     // Update favorite status if track changed
-    if (state.currentTrack?.storyId !== previousState.trackId) {
+    const nextEffectiveStoryId = this.getEffectiveStoryId();
+    if (nextEffectiveStoryId !== previousEffectiveStoryId || state.currentTrack?.storyId !== previousState.trackId) {
       this.updateFavoriteStatus();
     }
   }

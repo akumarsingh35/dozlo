@@ -1,31 +1,30 @@
 import { Component, inject } from '@angular/core';
-import { IonicModule } from '@ionic/angular';
+import { IonicModule, NavController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { OnInit } from '@angular/core';
 import { AuthService } from '../core/auth.service';
 import { User } from '@angular/fire/auth';
 import { NavFooterComponent } from '../shared/nav-footer/nav-footer.component';
-import { Router, RouterModule } from '@angular/router';
-import { NavController } from '@ionic/angular';
 import { Capacitor } from '@capacitor/core';
 import { LibraryDataService } from '../services/library-data.service';
 import { APP_VERSION } from '../version';
 import { FirebaseDataService, AppContent } from '../services/firebase-data.service';
 import { takeUntil } from 'rxjs/operators';
 import { Subject } from 'rxjs';
+import { ConnectivityService } from '../services/connectivity.service';
 
 @Component({
   selector: 'app-profile',
   templateUrl: './profile.page.html',
   styleUrls: ['./profile.page.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, RouterModule, NavFooterComponent]
+  imports: [IonicModule, CommonModule, NavFooterComponent]
 })
 export class ProfilePage implements OnInit {
-  private navCtrl = inject(NavController);
   user: User | null = null;
   imageLoadError = false;
   isLoading = true; // Add loading state
+  private isNavigating = false;
   totalListeningTime = '0 hours';
   recentListeningTime = '0 hours';
   appVersion = APP_VERSION;
@@ -56,8 +55,9 @@ export class ProfilePage implements OnInit {
 
   constructor(
     private authService: AuthService, 
-    private router: Router,
-    private libraryDataService: LibraryDataService
+    private navController: NavController,
+    private libraryDataService: LibraryDataService,
+    private connectivity: ConnectivityService
   ) { }
 
   ngOnInit() {
@@ -171,6 +171,15 @@ export class ProfilePage implements OnInit {
   }
 
   async signInWithGoogle() {
+    if (this.isLoading) {
+      return;
+    }
+
+    if (!this.connectivity.isOnline) {
+      this.connectivity.notifyOfflineAction();
+      return;
+    }
+
     this.isLoading = true;
     try {
       await this.authService.signInWithGoogle();
@@ -190,19 +199,19 @@ export class ProfilePage implements OnInit {
   onLegalClick(item: any) {
     switch (item.action) {
       case 'privacy':
-        this.navCtrl.navigateForward(['/privacy-policy'], { queryParams: { from: 'profile' }, animated: false });
+        void this.navigateTo('/privacy-policy', { from: 'profile' });
         break;
       case 'terms':
-        this.navCtrl.navigateForward(['/terms-of-use'], { queryParams: { from: 'profile' }, animated: false });
+        void this.navigateTo('/terms-of-use', { from: 'profile' });
         break;
       case 'about':
-        this.navCtrl.navigateForward(['/about'], { queryParams: { from: 'profile' }, animated: false });
+        void this.navigateTo('/about', { from: 'profile' });
         break;
       case 'help':
-        this.navCtrl.navigateForward(['/help-support'], { queryParams: { from: 'profile' }, animated: false });
+        void this.navigateTo('/help-support', { from: 'profile' });
         break;
       case 'data-usage':
-        this.navCtrl.navigateForward(['/data-usage'], { queryParams: { from: 'profile' }, animated: false });
+        void this.navigateTo('/data-usage', { from: 'profile' });
         break;
       default:
         console.warn('Unknown legal action:', item.action);
@@ -232,6 +241,11 @@ export class ProfilePage implements OnInit {
   }
 
   rateApp() {
+    if (!this.connectivity.isOnline) {
+      this.connectivity.notifyOfflineAction();
+      return;
+    }
+
     // Open Play Store rating page
     const playStoreUrl = this.contactInfo?.playStoreUrl || 'https://play.google.com/store/apps/details?id=com.dozlo.app';
     window.open(playStoreUrl, '_blank');
@@ -317,11 +331,48 @@ Thank you for your help!
 
   // Needed for links in the sign-in prompt section of the template
   navigateToPrivacyPolicy() {
-    this.navCtrl.navigateForward(['/privacy-policy'], { queryParams: { from: 'profile' }, animated: false });
+    void this.navigateTo('/privacy-policy', { from: 'profile' });
   }
 
   navigateToTerms() {
-    this.navCtrl.navigateForward(['/terms-of-use'], { queryParams: { from: 'profile' }, animated: false });
+    void this.navigateTo('/terms-of-use', { from: 'profile' });
   }
-}
 
+  openLegalPage(page: 'privacy' | 'terms'): void {
+    this.blurActiveElement();
+
+    const target = page === 'privacy' ? '/privacy-policy' : '/terms-of-use';
+    void this.navigateTo(target, { from: 'profile' });
+  }
+
+  private async navigateTo(path: string, queryParams?: Record<string, string>): Promise<void> {
+    if (this.isNavigating) {
+      return;
+    }
+
+    if (!this.connectivity.isOnline) {
+      this.connectivity.notifyOfflineAction();
+      return;
+    }
+
+    this.isNavigating = true;
+    try {
+      await this.navController.navigateForward([path], {
+        animated: false,
+        queryParams,
+      });
+    } catch (error) {
+      console.error(`Navigation failed for ${path}:`, error);
+    } finally {
+      setTimeout(() => {
+        this.isNavigating = false;
+      }, 200);
+    }
+  }
+
+  private blurActiveElement(): void {
+    const activeElement = document.activeElement as HTMLElement | null;
+    activeElement?.blur();
+  }
+
+}

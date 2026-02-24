@@ -20,6 +20,7 @@ import { R2ImageService } from '../services/r2-image.service';
 import { FirebaseDataService, FirebaseCategory, FirebaseSection, FirebaseStory } from '../services/firebase-data.service';
 import { ScrollManagerService } from '../services/scroll-manager.service';
 import { ConnectivityService } from '../services/connectivity.service';
+import { OfflineDownloadManagerService } from '../services/offline-download-manager.service';
 import { environment } from 'src/environments/environment';
 
 
@@ -39,6 +40,8 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
   networkError = false;
   isRetrying = false;
   private wasOnline = true;
+  isInitialDataLoading = true;
+  offlineDownloadedCount = 0;
 
   categories: FirebaseCategory[] = [];
   selectedCategory: FirebaseCategory | null = null;
@@ -58,6 +61,7 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
 
   showLoginBanner = true;
   isCategoryLoading = false;
+  isNavigatingToSignIn = false;
   private categoryLoadingCheckInterval: any;
   private categoryLoadingTimeout: any;
 
@@ -74,7 +78,8 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     private firebaseDataService: FirebaseDataService,
     private categoryService: CategoryService,
     private scrollManager: ScrollManagerService,
-    private connectivity: ConnectivityService
+    private connectivity: ConnectivityService,
+    private offlineDownloadManager: OfflineDownloadManagerService
   ) {
     this.audios$ = this.audioService.getAllAudioStories().pipe(
       catchError(error => {
@@ -201,8 +206,26 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     });
   }
 
-  onSignIn() {
-    this.navCtrl.navigateForward(['/sign-in'], { animated: false });
+  async onSignIn() {
+    if (this.isNavigatingToSignIn) {
+      return;
+    }
+
+    if (!this.connectivity.isOnline) {
+      this.connectivity.notifyOfflineAction();
+      return;
+    }
+
+    this.isNavigatingToSignIn = true;
+    try {
+      // Use root navigation to avoid stacked auth routes and unstable back-stack state.
+      await this.navCtrl.navigateRoot(['/sign-in'], { animated: false });
+    } finally {
+      // Keep a tiny cooldown so repeated taps do not queue duplicate navigations.
+      setTimeout(() => {
+        this.isNavigatingToSignIn = false;
+      }, 250);
+    }
   }
 
   onCategoryChange(event: any) {
@@ -609,8 +632,18 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     console.log('🏠 HomePage ngOnInit - Starting global data integration...');
     this.setDefaultState();
     this.loadGlobalData();
+    this.offlineDownloadManager.downloads$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((records) => {
+        this.offlineDownloadedCount = records.filter((record) => record.status === 'downloaded').length;
+      });
+
     this.connectivity.isOnline$.pipe(takeUntil(this.destroy$)).subscribe((online) => {
       this.networkError = !online;
+      if (!online && this.isInitialDataLoading && this.categories.length === 0) {
+        // Exit skeleton state quickly when offline and we have no remote data to render.
+        this.isInitialDataLoading = false;
+      }
       if (!this.wasOnline && online) {
         const hasNoData = (this.categories?.length || 0) === 0 && (this.currentSections?.length || 0) === 0;
         if (hasNoData && !this.isRetrying) {
@@ -637,14 +670,15 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     this.categories = [];
     this.selectedCategory = null;
     this.currentSections = [];
-    
-    // Set a timeout to ensure content is displayed even if loading gets stuck
+    this.isInitialDataLoading = true;
+
+    // Safety timeout so users do not see endless loading on very poor networks.
     setTimeout(() => {
-      if (!this.imagesLoaded && this.currentSections.length === 0) {
-        console.log('🏠 Loading timeout reached, forcing content display');
-        this.imagesLoaded = true;
+      if (this.isInitialDataLoading) {
+        console.log('🏠 Initial data loading timeout reached.');
+        this.isInitialDataLoading = false;
       }
-    }, 5000); // 5 second timeout
+    }, 10000);
     
     console.log('🏠 Default state set');
 
@@ -665,24 +699,13 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
         if (loaded) {
           console.log('🏠 Global data is loaded, setting up categories...');
           this.setupCategories();
-        } else {
-          console.log('🏠 Global data not loaded yet...');
         }
       },
       error: (error) => {
         console.error('🏠 Error in data loaded subscription:', error);
-        // Fallback: try to setup categories anyway
-        this.setupCategories();
+        this.isInitialDataLoading = false;
       }
     });
-    
-    // Also try to get data directly as a fallback
-    setTimeout(() => {
-      if (this.categories.length === 0) {
-        console.log('🏠 Fallback: trying to get categories directly...');
-        this.setupCategories();
-      }
-    }, 2000);
   }
 
   async retryLoad() {
@@ -727,6 +750,7 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     ).subscribe({
       next: (categories) => {
         console.log('🏠 Categories received:', categories.length);
+        this.isInitialDataLoading = false;
         this.categories = categories;
         
         // Select the first category (Latest) by default
@@ -735,12 +759,49 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
           this.selectCategory(categories[0]);
         } else {
           console.log('🏠 No categories available');
+          this.isCategoryLoading = false;
+          this.imagesLoaded = true;
         }
       },
       error: (error) => {
         console.error('🏠 Error getting categories:', error);
+        this.isInitialDataLoading = false;
+        this.isCategoryLoading = false;
       }
     });
+  }
+
+  shouldShowEmptyState(): boolean {
+    return !this.isInitialDataLoading && !this.isCategoryLoading && this.currentSections.length === 0;
+  }
+
+  getEmptyStateTitle(): string {
+    if (this.networkError) {
+      return 'You are offline';
+    }
+    return 'Content is not available right now';
+  }
+
+  getEmptyStatePrimaryMessage(): string {
+    if (this.networkError) {
+      return this.offlineDownloadedCount > 0
+        ? `You can still play ${this.offlineDownloadedCount} downloaded audio${this.offlineDownloadedCount > 1 ? 's' : ''} from Library.`
+        : 'No offline downloads are available on this device right now.';
+    }
+    return 'We could not load stories for the selected category yet.';
+  }
+
+  getEmptyStateSecondaryMessage(): string {
+    if (this.networkError) {
+      return this.offlineDownloadedCount > 0
+        ? 'Open Library > Downloads to listen without internet.'
+        : 'Connect to the internet, then download stories for offline listening.';
+    }
+    return 'Please retry in a moment or switch category.';
+  }
+
+  async openLibraryDownloads(): Promise<void> {
+    await this.navCtrl.navigateRoot(['/library'], { animated: false });
   }
 
   private enrichStoriesWithR2Urls() {
