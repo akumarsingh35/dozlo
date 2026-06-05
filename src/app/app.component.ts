@@ -29,7 +29,7 @@ import { OfflineDownloadManagerService } from './services/offline-download-manag
 })
 
 export class AppComponent implements AfterViewInit, OnDestroy {
-  audioState: AudioState = { isPlaying: false, currentTrack: null, progress: 0, duration: 0, isLoading: false, loadingTrackId: '', currentTime: 0 };
+  audioState: AudioState = { isPlaying: false, currentTrack: null, progress: 0, duration: 0, isLoading: false, loadingTrackId: '', currentTime: 0, isLooping: false };
   private audioSub: Subscription;
   private networkSub?: Subscription;
   private offlineActionSub?: Subscription;

@@ -37,7 +37,7 @@
     <!-- CATEGORY SLIDER -->
     <div class="category-scroller" *ngIf="categories.length > 0">
       <button
-        *ngFor="let category of categories"
+        *ngFor="let category of categories; trackBy: trackByCategory"
         [class.active]="selectedCategory?.name === category.name"
         [disabled]="isCategoryLoading"
         (click)="selectCategory(category)"
@@ -50,7 +50,7 @@
     </div>
 
     <!-- SECTIONS -->
-    <div *ngFor="let section of currentSections">
+    <div *ngFor="let section of currentSections; trackBy: trackBySection">
       <!-- Section Header - Centered for cards, normal for others -->
       <div class="section-header" [class.centered-header]="section.sectionType === 'cards'">
         <h3>{{ section.title }}</h3>

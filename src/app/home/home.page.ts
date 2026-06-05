@@ -283,6 +283,14 @@ export class HomePage implements OnInit, OnDestroy, AfterViewInit {
     return story.id;
   }
 
+  trackByCategory(index: number, category: FirebaseCategory): string {
+    return category.id;
+  }
+
+  trackBySection(index: number, section: FirebaseSection): string {
+    return section.id;
+  }
+
   /**
    * Utility: fixed-length array for skeleton placeholders
    */

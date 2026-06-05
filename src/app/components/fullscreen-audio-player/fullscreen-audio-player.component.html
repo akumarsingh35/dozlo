@@ -95,6 +95,23 @@
         <ion-icon slot="icon-only" name="play-forward-outline"></ion-icon>
       </ion-button>
     </div>
+
+    <div class="secondary-controls">
+      <button
+        class="secondary-control loop-toggle"
+        type="button"
+        [class.active]="isLooping"
+        [class.announce-active]="loopAnimationActive"
+        (click)="toggleLoop($event)"
+      >
+        <span class="loop-badge" *ngIf="isLooping">
+          <span class="loop-ping"></span>
+          <span class="loop-dot"></span>
+        </span>
+        <ion-icon [name]="isLooping ? 'repeat' : 'repeat-outline'"></ion-icon>
+        <span>{{ isLooping ? 'Loop On' : 'Loop Off' }}</span>
+      </button>
+    </div>
  
     <!-- Ambient Sounds Section -->
     <div class="ambient-sounds-section">

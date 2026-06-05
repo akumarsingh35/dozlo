@@ -18,6 +18,7 @@ export interface AudioState {
   isLoading: boolean;
   loadingTrackId: string;
   currentTime: number;
+  isLooping: boolean;
 }
 
 export interface AudioTrack {
@@ -51,7 +52,8 @@ export class GlobalAudioPlayerService {
     duration: 0,
     isLoading: false,
     loadingTrackId: '',
-    currentTime: 0
+    currentTime: 0,
+    isLooping: false
   });
 
   audioState$ = this.audioState.asObservable();
@@ -95,6 +97,7 @@ export class GlobalAudioPlayerService {
   private offlineObjectUrl: string | null = null;
   private isOfflinePlayback = false;
   private offlineStoryId = '';
+  private loopRestartInFlight = false;
 
   constructor(
     private r2AudioService: R2AudioService,
@@ -201,6 +204,29 @@ export class GlobalAudioPlayerService {
   public isTrackLoading(trackId: string): boolean {
     const state = this.audioState.getValue();
     return state.isLoading && state.loadingTrackId === trackId;
+  }
+
+  public isLoopEnabled(): boolean {
+    return this.audioState.getValue().isLooping;
+  }
+
+  public setLoopEnabled(enabled: boolean): void {
+    const normalized = !!enabled;
+    if (this.audioState.getValue().isLooping === normalized) {
+      return;
+    }
+
+    if (this.offlineAudio) {
+      this.offlineAudio.loop = normalized;
+    }
+
+    this.updateState({ isLooping: normalized });
+  }
+
+  public toggleLoop(): boolean {
+    const nextValue = !this.audioState.getValue().isLooping;
+    this.setLoopEnabled(nextValue);
+    return nextValue;
   }
 
   setLoading(isLoading: boolean, trackId: string) {
@@ -571,6 +597,7 @@ export class GlobalAudioPlayerService {
     const audio = new Audio();
     audio.preload = 'auto';
     audio.src = offlineUrl;
+    audio.loop = this.audioState.getValue().isLooping;
 
     this.isOfflinePlayback = true;
     this.offlineAudio = audio;
@@ -620,6 +647,16 @@ export class GlobalAudioPlayerService {
 
     audio.onended = () => {
       if (token !== this.playToken || this.offlineAudio !== audio) {
+        return;
+      }
+      if (this.audioState.getValue().isLooping) {
+        this.updateState({
+          isPlaying: true,
+          progress: 0,
+          currentTime: 0,
+          currentTrack: this.lastTrack || this.audioState.getValue().currentTrack,
+        });
+        this.ambientAudioService.onMainAudioResume();
         return;
       }
       const track = this.audioState.getValue().currentTrack;
@@ -823,6 +860,7 @@ export class GlobalAudioPlayerService {
   }
 
   private stopCurrentAudio() {
+    this.loopRestartInFlight = false;
     this.cancelActiveSeek();
     this.stopOfflinePlayback();
     this.stopNativePlayback();
@@ -936,6 +974,7 @@ export class GlobalAudioPlayerService {
       currentTrack: track,
       progress: 0,
       duration: track.duration || 0,
+      currentTime: 0,
     });
     this.debugLog('Track selected', {
       storyId: request.storyId,
@@ -1051,7 +1090,12 @@ export class GlobalAudioPlayerService {
     }
 
     if (token === this.playToken) {
-      this.updateState({ isPlaying: true, isLoading: false, loadingTrackId: '', currentTrack: this.lastTrack || this.audioState.getValue().currentTrack });
+      this.updateState({
+        isPlaying: true,
+        isLoading: false,
+        loadingTrackId: '',
+        currentTrack: this.lastTrack || this.audioState.getValue().currentTrack,
+      });
       this.startProgressTracking();
     }
 
@@ -1081,11 +1125,20 @@ export class GlobalAudioPlayerService {
     });
 
     await AudioPlayer.onAudioEnd({ audioId: this.nativeAudioId }, () => {
+      if (this.audioState.getValue().isLoading || this.loopRestartInFlight) {
+        return;
+      }
+
+      const track = this.lastTrack || this.audioState.getValue().currentTrack;
+      if (this.audioState.getValue().isLooping && track) {
+        void this.restartNativeTrackFromStart();
+        return;
+      }
+
       this.stopProgressTracking();
-      this.updateState({ isPlaying: false, progress: 0, currentTrack: null });
-      const rp = this.audioState.getValue().currentTrack?.r2Path;
+      this.updateState({ isPlaying: false, progress: 0, currentTime: 0, currentTrack: null });
+      const rp = track?.r2Path;
       if (rp) { this.r2AudioService.stopRollingRefresh(rp); }
-      const track = this.audioState.getValue().currentTrack;
       if (track) {
         this.analytics.logAudioStop(
           track.storyId || track.audioUrl || '',
@@ -1124,6 +1177,65 @@ export class GlobalAudioPlayerService {
         this.ambientAudioService.onMainAudioPause();
       }
     });
+  }
+
+  private async restartNativeTrackFromStart(): Promise<void> {
+    if (!Capacitor.isNativePlatform() || !this.nativeCreated || this.loopRestartInFlight) {
+      return;
+    }
+
+    const tokenAtStart = this.playToken;
+    const track = this.lastTrack || this.audioState.getValue().currentTrack;
+    if (!track) {
+      return;
+    }
+
+    this.loopRestartInFlight = true;
+    const trackId = track.storyId || '';
+
+    try {
+      this.stopProgressTracking();
+      this.updateState({
+        isPlaying: false,
+        isLoading: !!trackId,
+        loadingTrackId: trackId,
+        progress: 0,
+        currentTime: 0,
+        currentTrack: track,
+      });
+
+      try {
+        await AudioPlayer.seek({ audioId: this.nativeAudioId, timeInSeconds: 0 });
+      } catch {
+        await AudioPlayer.initialize({ audioId: this.nativeAudioId });
+        await AudioPlayer.seek({ audioId: this.nativeAudioId, timeInSeconds: 0 });
+      }
+
+      if (tokenAtStart !== this.playToken || !this.audioState.getValue().isLooping) {
+        return;
+      }
+
+      await AudioPlayer.play({ audioId: this.nativeAudioId });
+
+      if (tokenAtStart !== this.playToken || !this.audioState.getValue().isLooping) {
+        return;
+      }
+
+      this.updateState({
+        isPlaying: true,
+        isLoading: false,
+        loadingTrackId: '',
+        progress: 0,
+        currentTime: 0,
+        currentTrack: track,
+      });
+      this.startProgressTracking();
+      this.ambientAudioService.onMainAudioResume();
+    } catch (error) {
+      this.handleAudioError('play', error);
+    } finally {
+      this.loopRestartInFlight = false;
+    }
   }
 
   private async resumeNativePlayback(): Promise<void> {

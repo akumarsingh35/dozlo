@@ -1,10 +1,12 @@
 import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
 import { Firestore, collection, getDocs, query, orderBy, limit, where } from '@angular/fire/firestore';
 import { Observable, from, map, catchError, of, BehaviorSubject } from 'rxjs';
+import { sortByStableDisplayOrder } from './homepage-ordering.util';
 
 export interface FirebaseCategory {
   id: string;
   name: string;
+  order?: number;
   sections: FirebaseSection[];
 }
 
@@ -12,6 +14,7 @@ export interface FirebaseSection {
   id: string;
   title: string;
   sectionName: string;
+  order?: number;
   sectionType: 'sliderCards' | 'cards' | 'stacks';
   stories: FirebaseStory[];
 }
@@ -435,6 +438,7 @@ export class FirebaseDataService {
             const category: FirebaseCategory = {
               id: categoryItem.id || 'unknown',
               name: categoryItem.name || 'Unnamed Category',
+              order: categoryItem.order,
               sections: []
             };
 
@@ -444,8 +448,9 @@ export class FirebaseDataService {
                 
                 const section: FirebaseSection = {
                   id: sectionItem.sectionName || 'unknown',
-                  title: sectionItem.sectionName || 'Untitled Section',
+                  title: sectionItem.sectionTitle || sectionItem.sectionName || 'Untitled Section',
                   sectionName: sectionItem.sectionName || 'Untitled Section',
+                  order: sectionItem.order,
                   sectionType: sectionItem.sectionType || 'cards',
                   stories: []
                 };
@@ -466,6 +471,8 @@ export class FirebaseDataService {
                 category.sections.push(section);
               }
             }
+
+            category.sections = sortByStableDisplayOrder(category.sections);
             
             categories.push(category);
             console.log(`📚 Category ${category.name} has ${category.sections.length} sections with ${category.sections.reduce((total, sec) => total + sec.stories.length, 0)} total stories`);
@@ -473,17 +480,20 @@ export class FirebaseDataService {
         }
       }
 
+      const orderedCategories = sortByStableDisplayOrder(categories);
+
       const result: HomepageData = {
-        categories,
+        categories: orderedCategories,
         stories: allStories
       };
 
       console.log('✅ Homepage data fetched successfully:', {
-        categoriesCount: categories.length,
+        categoriesCount: orderedCategories.length,
         storiesCount: allStories.length,
-        categories: categories.map(c => ({ 
+        categories: orderedCategories.map(c => ({ 
           id: c.id, 
           name: c.name, 
+          order: c.order,
           sectionsCount: c.sections?.length || 0,
           totalStoriesInCategory: c.sections?.reduce((total, section) => total + (section.stories?.length || 0), 0) || 0
         }))

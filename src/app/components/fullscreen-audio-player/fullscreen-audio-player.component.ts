@@ -37,6 +37,8 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
   progress = 0;
   downloadProgress = 0;
   downloadStatus: OfflineDownloadRecord['status'] | 'idle' = 'idle';
+  isLooping = false;
+  loopAnimationActive = false;
 
   // Ambient tracks state
   ambientTracks: { id: string; name: string; volume: number }[] = [];
@@ -47,6 +49,7 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
   isSeekPending = false;
   private pendingSeekTime: number | null = null;
   private pendingSeekTimer: any = null;
+  private loopAnimationTimer: any = null;
 
   constructor(
     private modalController: ModalController,
@@ -64,6 +67,7 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
         this.ngZone.run(() => {
           this.isPlaying = state.isPlaying;
           this.isLoading = state.isLoading;
+          this.isLooping = !!state.isLooping;
           this.duration = state.duration;
           if (this.duration <= 0 && state.currentTrack?.duration && state.currentTrack.duration > 0) {
             this.duration = state.currentTrack.duration;
@@ -114,6 +118,14 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    if (this.pendingSeekTimer) {
+      clearTimeout(this.pendingSeekTimer);
+      this.pendingSeekTimer = null;
+    }
+    if (this.loopAnimationTimer) {
+      clearTimeout(this.loopAnimationTimer);
+      this.loopAnimationTimer = null;
+    }
     this.subscriptions.unsubscribe();
   }
 
@@ -247,12 +259,49 @@ export class FullscreenAudioPlayerComponent implements OnInit, OnDestroy {
     await toast.present();
   }
 
+  private async presentLoopToast(message: string): Promise<void> {
+    const toast = await this.toastController.create({
+      message,
+      duration: 1600,
+      position: 'bottom',
+    });
+    await toast.present();
+  }
+
+  private triggerLoopAnimation(): void {
+    this.loopAnimationActive = true;
+    if (this.loopAnimationTimer) {
+      clearTimeout(this.loopAnimationTimer);
+    }
+    this.loopAnimationTimer = setTimeout(() => {
+      this.loopAnimationActive = false;
+      this.loopAnimationTimer = null;
+    }, 1400);
+  }
+
   togglePlay() {
     if (this.isPlaying) {
       this.globalAudioPlayerService.pause();
     } else {
       this.globalAudioPlayerService.play();
     }
+  }
+
+  async toggleLoop(event: Event): Promise<void> {
+    event.stopPropagation();
+
+    const isLoopEnabled = this.globalAudioPlayerService.toggleLoop();
+    this.isLooping = isLoopEnabled;
+
+    if (isLoopEnabled) {
+      this.triggerLoopAnimation();
+    } else {
+      this.loopAnimationActive = false;
+    }
+
+    await this.presentLoopToast(
+      isLoopEnabled ? 'This audio will now play on loop.' : 'Loop turned off.'
+    );
   }
 
   seekBackward() {
